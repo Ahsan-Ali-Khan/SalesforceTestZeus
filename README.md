@@ -1,6 +1,10 @@
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.testzeus/Test_Zeus/badge.svg?style=plastic)](https://maven-badges.herokuapp.com/maven-central/com.testzeus/Test_Zeus)
 
-## Hello 👋
+## Note: This is the legacy repository. Kindly navigate to [Hercules: The world's first open source testing agent](https://github.com/test-zeus-ai/testzeus-hercules/) for the latest and greatest on using TestZeus Hercules for Salesforce test automation.
+👋
+
+## Hello 
+
 ⚡Automation for Salesforce is tough (no , seriously). And every platform release brings the lightning and thunder for UI Automation tests (Winter21 caused even our tests to shiver). So we thought, what if we could find a solution to this madness and create a simple (but robust) framework for Salesforce automation tests.
 And solve the problem of flaky tests, while accelerating the development of automation tests. 
 
