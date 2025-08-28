@@ -3,7 +3,7 @@ package testscripts;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
-import testzeus.base.SFPageBase;
+import utils.SFPageBase;
 
 /**
  * @author Robin

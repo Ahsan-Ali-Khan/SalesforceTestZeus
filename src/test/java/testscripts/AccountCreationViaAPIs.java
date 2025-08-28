@@ -4,7 +4,7 @@ import org.json.JSONObject;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
-import testzeus.base.HTTPClientWrapper;
+import utils.HTTPClientWrapper;
 
 /**
  * @author Robin

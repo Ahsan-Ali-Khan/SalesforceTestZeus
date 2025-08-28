@@ -3,7 +3,7 @@ package testscripts;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
-import testzeus.base.SFPageBase;
+import utils.SFPageBase;
 
 /**
  * @author Robin
@@ -38,7 +38,7 @@ public class AccountCreationViaUI extends BaseTest {
 
 		// Or form data can be read from a json file as below
 		objectlistpage.formValueFiller("SIC Code",
-				testzeus.base.SFPageBase.readJsonFile("accountdata", "$.['SIC Code']"));
+				utils.SFPageBase.readJsonFile("accountdata", "$.['SIC Code']"));
 
 		objectlistpage.clickSave();
 		System.out.println("Thank you :) ");

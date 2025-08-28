@@ -13,7 +13,7 @@ import org.openqa.selenium.support.PageFactory;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-public class LightningLoginPage extends testzeus.base.SFPageBase {
+public class LightningLoginPage extends utils.SFPageBase {
 
     @FindBy(id = "username")
     @CacheLookup

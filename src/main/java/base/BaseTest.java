@@ -37,14 +37,14 @@ import com.jayway.jsonpath.JsonPath;
 import pageobjects.ObjectListPage;
 import pageobjects.AccountListPage_new_example;
 import pageobjects.LightningLoginPage;
-import testzeus.base.GetSFApps;
-import testzeus.base.HTTPClientWrapper;
-import testzeus.base.PageBase;
+import utils.GetSFApps;
+import utils.HTTPClientWrapper;
+import utils.PageBase;
 
 /*@author: Robin Gupta
 @Date: 29 September 2021
 @Purpose: All the test classes extend this base test , so as to carry forward the abstraction for page objects , webdriver setup and TEstNG level methods
-🙏
+
 */
 
 public class BaseTest implements ExcelReader, PropertyReader {
