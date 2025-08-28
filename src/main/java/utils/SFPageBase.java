@@ -4,7 +4,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 
+import org.openqa.selenium.By;
 import org.openqa.selenium.By.ByName;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
@@ -128,7 +130,11 @@ public static void sectionGetter() throws Exception {
 		for (int i = 0; i < listoflabels.size(); i++) {
 			String label = listoflabels.get(i);
 			String typepath = "$..[?(@.label =='" + label + "')].dataType";
-			String datatype = JsonPath.read(uiapi_record_json, typepath).toString();
+			
+			String datatype = null;
+			Object result = JsonPath.read(uiapi_record_json, typepath);
+			// Print the first element of the list only
+			datatype = ((List<?>) result).get(0).toString();
 			labelandtype.put(label, datatype);
 		}
 		labelandtype.entrySet().forEach(entry -> {
@@ -151,36 +157,40 @@ public static void sectionGetter() throws Exception {
 		WebElement we;
 		String type = labelandtype.get(label);
 		switch (type) {
-		case "[\"String\"]":
-		case "[\"Url\"]":
-		case "[\"Int\"]":
-		case "[\"Phone\"]":
-		case "[\"Currency\"]":
-		case "[\"Double\"]":
-		case "[\"Date\"]":
-		case "[\"Boolean\"]":
+		case "String":
+		case "Url":
+		case "Int":
+		case "Phone":
+		case "Currency":
+		case "Double":
+		case "Date":
+		case "Boolean":
+		case "Email":
 			Thread.sleep(5000);
 			// Locator design inspired by
 			// https://trailblazers.salesforce.com/_ui/core/chatter/groups/GroupProfilePage?g=0F93A000000DQPd&fId=0D54S000008HKSK
-			we = driver.findElement(ByName.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
+			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
 			we.sendKeys(targetvalue);
 			System.out.println("Sent values as " + targetvalue);
 			break;
-		case "[\"TextArea\"]":
-			we = driver.findElement(ByName.xpath("//textarea[@id=string(//label[text()='" + label + "']/@for)]"));
+		case "TextArea":
+			we = driver.findElement(By.xpath("//textarea[@id=string(//label[text()='" + label + "']/@for)]"));
 			we.sendKeys(targetvalue);
+			System.out.println("Sent values as " + targetvalue);
 			break;
-		case "[\"Picklist\"]":
-			we = driver.findElement(ByName.xpath("//button[@id=string(//label[text()='" + label + "']/@for)]"));
+		case "Picklist":
+			we = driver.findElement(By.xpath("//button[@id=string(//label[text()='" + label + "']/@for)]"));
 			we.sendKeys(targetvalue);
 			Thread.sleep(2000);
 			we.sendKeys(Keys.ENTER);
+			System.out.println("Selected " + targetvalue);
 			break;
-		case "[\"Reference\"]":
-			we = driver.findElement(ByName.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
+		case "Reference":
+			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
 			we.sendKeys(Keys.ARROW_DOWN);
 			Thread.sleep(2000);
 			we.sendKeys(Keys.ENTER);
+			System.out.println("Sent values as " + targetvalue);
 			break;
 		}
 
