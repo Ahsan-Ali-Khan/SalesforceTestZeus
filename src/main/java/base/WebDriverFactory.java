@@ -7,11 +7,15 @@ import java.time.Duration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.openqa.selenium.HasCapabilities;
 import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.Platform;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.edge.EdgeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.firefox.FirefoxProfile;
@@ -47,60 +51,77 @@ public class WebDriverFactory {
         return driver;
     }
 
-    static WebDriver createInstance(URL hubUrl, String browserName) throws IOException {
+    public static WebDriver createInstance(URL hubUrl, String browserName) throws IOException {
         WebDriver driver = null;
 
-        if (browserName.equalsIgnoreCase("firefox")) {
-            WebDriverManager.firefoxdriver().setup();
-            driver = new FirefoxDriver(createFirefoxProfile());
+        switch (browserName.toLowerCase()) {
+            case "firefox":
+                WebDriverManager.firefoxdriver().clearDriverCache().setup();
+                FirefoxOptions ffOptions = new FirefoxOptions();
+                driver = new FirefoxDriver(ffOptions);
+                break;
 
-        } else if (browserName.equalsIgnoreCase("chrome")) {
-            WebDriverManager.chromedriver().setup();
+            case "chrome":
+                WebDriverManager.chromedriver().clearDriverCache().setup();
+                ChromeOptions chromeOptions = new ChromeOptions();
+                chromeOptions.addArguments("--disable-notifications",
+                                           "--start-maximized",
+                                           "--enable-automation",
+                                           "--no-sandbox",
+                                           "--disable-infobars",
+                                           "--disable-dev-shm-usage",
+                                           "--disable-browser-side-navigation",
+                                           "--disable-gpu");
+                chromeOptions.setPageLoadStrategy(PageLoadStrategy.NORMAL);
+                driver = new ChromeDriver(chromeOptions);
+                break;
 
-            ChromeOptions options = new ChromeOptions();
-            options.addArguments("--disable-notifications");
-            options.addArguments("--start-maximized");
-            options.addArguments("--enable-automation");
-            options.addArguments("--no-sandbox");
-            options.addArguments("--disable-infobars");
-            options.addArguments("--disable-dev-shm-usage");
-            options.addArguments("--disable-browser-side-navigation");
-            options.addArguments("--disable-gpu");
-            options.setPageLoadStrategy(PageLoadStrategy.NORMAL);
+            case "edge":
+                WebDriverManager.edgedriver().clearDriverCache().setup();
+                EdgeOptions edgeOptions = new EdgeOptions();
+                driver = new EdgeDriver(edgeOptions);
+                break;
 
-            driver = new org.openqa.selenium.chrome.ChromeDriver(options);
+            case "ie":
+                WebDriverManager.iedriver().clearDriverCache().setup();
+                InternetExplorerOptions ieOptions = new InternetExplorerOptions();
+                ieOptions.ignoreZoomSettings();
+                ieOptions.introduceFlakinessByIgnoringSecurityDomains();
+                ieOptions.destructivelyEnsureCleanSession();
+                driver = new InternetExplorerDriver(ieOptions);
+                break;
 
-        } else if (browserName.equalsIgnoreCase("ie")) {
-            WebDriverManager.iedriver().setup();
+            case "safari":
+                if (isSafariSupportedPlatform()) {
+                    driver = new SafariDriver();
+                } else {
+                    throw new UnsupportedOperationException("Safari is only supported on macOS");
+                }
+                break;
 
-            InternetExplorerOptions options = new InternetExplorerOptions();
-            options.ignoreZoomSettings();
-            options.introduceFlakinessByIgnoringSecurityDomains();
-            options.destructivelyEnsureCleanSession();
-            options.withInitialBrowserUrl("http://www.bing.com/");
+            case "remote-chrome":
+                WebDriverManager.chromedriver().clearDriverCache().setup();
+                driver = new RemoteWebDriver(hubUrl, new ChromeOptions());
+                break;
 
-            driver = new InternetExplorerDriver(options);
+            case "remote-firefox":
+                WebDriverManager.firefoxdriver().clearDriverCache().setup();
+                driver = new RemoteWebDriver(hubUrl, new FirefoxOptions());
+                break;
 
-        } else if (browserName.equalsIgnoreCase("safari") && isSafariSupportedPlatform()) {
-            driver = new SafariDriver();
+            case "remote-edge":
+                WebDriverManager.edgedriver().clearDriverCache().setup();
+                driver = new RemoteWebDriver(hubUrl, new EdgeOptions());
+                break;
 
-        } else if (browserName.equalsIgnoreCase("remote-chrome")) {
-            ChromeOptions options = new ChromeOptions();
-            driver = new RemoteWebDriver(hubUrl, options);
-
-        } else if (browserName.equalsIgnoreCase("remote-firefox")) {
-            FirefoxOptions options = new FirefoxOptions();
-            driver = new RemoteWebDriver(hubUrl, options);
-
-        } else if (browserName.equalsIgnoreCase("remote-ie")) {
-            InternetExplorerOptions options = new InternetExplorerOptions();
-            driver = new RemoteWebDriver(hubUrl, options);
-
-        } else if (browserName.equalsIgnoreCase("remote-safari")) {
-            driver = new RemoteWebDriver(hubUrl, new SafariDriver().getCapabilities());
+            default:
+                throw new IllegalArgumentException("Unsupported browser: " + browserName);
         }
 
-        log.info("WebDriverFactory created an instance of WebDriver for: " + browserName);
+        System.out.println(" WebDriverFactory created driver for: " + browserName +
+                           " | Browser version: " +
+                           ((HasCapabilities) driver).getCapabilities().getBrowserVersion());
+
         return driver;
     }
 
