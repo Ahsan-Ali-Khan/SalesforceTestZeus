@@ -162,7 +162,7 @@ public static void sectionGetter() throws Exception {
 	    SFClick(driver.findElement(By.xpath(xpath)));
 	}
 	
-	public void clickOnGlobalSerachTextbox(String placeholderText) {
+	public void clickOnGlobalSearchTextbox(String placeholderText) {
 	    String xpath = String.format("//button[@aria-label='%s']", placeholderText);
 	    WebElement globalSearch= driver.findElement(By.xpath(xpath));
 	    SFClick(globalSearch);
@@ -269,9 +269,61 @@ public static void sectionGetter() throws Exception {
 
 	}
 
-	public void globalSearch(String searchterm) {
-		// To be implemented in the future
+	// Core method → handles both generic and object-specific searches
+	public void globalSearch(String searchTerm, String objectType) {
+	    try {
+	        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
 
+	        // 1. Ensure search input is visible
+	        String inputXpath = "//input[@type='search' and starts-with(@placeholder,'Search')]";
+	        WebElement searchInput;
+	        try {
+	            searchInput = driver.findElement(By.xpath(inputXpath));
+	        } catch (Exception e) {
+	            WebElement searchBtn = wait.until(d -> d.findElement(
+	                By.xpath("//button[contains(@class,'search-button') or @aria-label='Search']")));
+	            searchBtn.click();
+	            searchInput = wait.until(d -> d.findElement(By.xpath(inputXpath)));
+	        }
+
+	        // 2. Enter search term
+	        searchInput.clear();
+	        searchInput.sendKeys(searchTerm);
+	        searchInput.sendKeys(Keys.ENTER);
+	        System.out.println("Searching for: " + searchTerm);
+
+	        // 3. Wait for results
+	        wait.until(d -> d.findElements(
+	            By.xpath("//a[contains(@href,'/lightning/r/') and normalize-space()]")).size() > 0);
+
+	        // 4. Construct result xpath based on object type
+	        String resultXpath;
+	        if (objectType != null && !objectType.isEmpty()) {
+	            resultXpath = "//a[contains(@href,'/lightning/r/" + objectType + "/') and normalize-space()]";
+	        } else {
+	            resultXpath = "//a[contains(@href,'/lightning/r/') and normalize-space()]";
+	        }
+
+	        // 5. Click first result
+	        List<WebElement> results = driver.findElements(By.xpath(resultXpath));
+	        if (!results.isEmpty()) {
+	            results.get(0).click();
+	            System.out.println("Clicked first " + 
+	                (objectType == null ? "" : objectType + " ") + 
+	                "result for: " + searchTerm);
+	        } else {
+	            System.out.println("No results found for: " + searchTerm + 
+	                (objectType == null ? "" : " in " + objectType));
+	        }
+
+	    } catch (Exception e) {
+	        System.out.println("Exception in globalSearch: " + e.getMessage());
+	    }
+	}
+
+	// Overloaded method → calls core method with null
+	public void globalSearch(String searchTerm) {
+	    globalSearch(searchTerm, null);
 	}
 
 	public String getURL(String appname) { // Method to get SF Apps URL and simulate 9 dot navigation
