@@ -1,5 +1,7 @@
 package utils;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,7 +86,7 @@ public class SFPageBase extends PageBase {
 		}
 	}
 
-	public static void uiApiHitter(String recordID) {
+	public static void uiApiHitter(String recordID) throws IOException {
 		// This method call is the heart of the UI API based automation and gets the UI
 		// API
 		// Json for further operations ♥
@@ -92,7 +94,11 @@ public class SFPageBase extends PageBase {
 		// general methods below can be used for the other sbjects.
 		uiapi_record_json = (HTTPClientWrapper
 				.runGetRequest("/ui-api/record-ui/" + recordID + "?formFactor=Large&modes=View,Edit")).toString();
-		System.out.println(uiapi_record_json);
+		System.out.println("JSON : " + uiapi_record_json);
+		
+		try (FileWriter file = new FileWriter("C:\\Users\\Shridhar Biranje\\Desktop\\AutomationTesting_Study\\imp\\WenomatesDocuments\\output.json")) {
+		    file.write(uiapi_record_json);
+		}
 
 	}
 
@@ -111,6 +117,7 @@ public static void sectionGetter() throws Exception {
 		// These labels are gathered from layoutComponents as we get labels which are
 		// actually displayed on the UI rather than all the fields for the sObject
 		String labelpath = "$..[?(@.editableForUpdate == true)].layoutComponents..label";
+		System.out.println("PageObjectMetadata >>> " + uiapi_record_json);
 		JSONArray listofduplicatelabels = JsonPath.read(uiapi_record_json, labelpath);
 		// As we are hitting modes=View, Edit, hence we are getting duplicates.
 		LinkedHashSet<String> labels = new LinkedHashSet<String>();
@@ -138,7 +145,7 @@ public static void sectionGetter() throws Exception {
 			labelandtype.put(label, datatype);
 		}
 		labelandtype.entrySet().forEach(entry -> {
-			System.out.println("Label and types are : " + entry.getKey() + " " + entry.getValue());
+			System.out.println("Label : '" + entry.getKey() + "' & its type '" + entry.getValue() + "'");
 		});
 	}
 
@@ -148,6 +155,47 @@ public static void sectionGetter() throws Exception {
 		labelGetter();
 		dataTypeGetter();
 	}
+	
+	public void clickEditByFieldLabel(String fieldLabel) throws InterruptedException {
+		Thread.sleep(5000);
+	    String xpath = String.format("//button[@title='Edit %s']", fieldLabel);	    
+	    SFClick(driver.findElement(By.xpath(xpath)));
+	}
+	
+	public void clickOnGlobalSerachTextbox(String placeholderText) {
+	    String xpath = String.format("//button[@aria-label='%s']", placeholderText);
+	    WebElement globalSearch= driver.findElement(By.xpath(xpath));
+	    SFClick(globalSearch);
+	
+	}
+	
+	
+	public void clickSelectAllDownArrow(String placeholder) {
+	    String xpath = String.format(
+	        "//input[@data-value='%s']/ancestor::div[contains(@class,'slds-combobox__form-element')]//lightning-icon[@icon-name='utility:down']",
+	        placeholder
+	    );
+	    WebElement downArrow= driver.findElement(By.xpath(xpath));
+	    SFClick(downArrow);
+	}
+	
+	public void clickListboxOption(String optionText) {
+	    String xpath = String.format(
+	        "//li[contains(@class,'slds-listbox__item')]//span[@title='%s']",
+	        optionText
+	    );
+	    WebElement listBoxOption= driver.findElement(By.xpath(xpath));
+	    SFClick(listBoxOption);
+	}
+	
+	public void selectFirstSuggestedValue()
+	{
+		WebElement firstVisibleSuggestion = driver.findElement(
+			    By.xpath("(//search_dialog-instant-results-list//search_dialog-instant-result-item[.//span[normalize-space()!='']])[1]")
+			);
+		SFClick(firstVisibleSuggestion);
+	}
+
 
 	public void formValueFiller(String label, String targetvalue) throws Exception {
 		// This method automagically uses the label and datatypes to fill the form on

@@ -537,6 +537,7 @@ public class PageBase { // This file contains common framework level methods for
 	}
 
 	public void enterValue(WebElement element, String value) {
+		waitAndforceClickElement(element);
 		element.click();
 		if (element.getTagName().equals("input")) {
 			element.clear();
