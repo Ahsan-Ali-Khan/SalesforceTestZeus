@@ -13,7 +13,9 @@ public class ObjectListPage extends utils.SFPageBase {
 	@FindBy(xpath = "//button[@name='SaveEdit']")
 	private WebElement savebutton;
 	
-
+	@FindBy(xpath = "//div[text()='Advertiser Type']/following-sibling::div//button[@title='Move to Chosen']")
+	private WebElement moveSelectiontoChoosen;
+	
 	@FindBy(xpath = "//div[@class='slds-grid']//span[text() = 'Recently Viewed']/following::lightning-icon[@icon-name='utility:down'][2]")
 	private WebElement showmoreactions;
 
@@ -56,6 +58,14 @@ public class ObjectListPage extends utils.SFPageBase {
 	public void clickSave() throws InterruptedException {
 
 		SFClick(savebutton);
+
+		Thread.sleep(5000);
+
+	}
+	
+	public void moveSelectiontoChoosen() throws InterruptedException {
+
+		SFClick(moveSelectiontoChoosen);
 
 		Thread.sleep(5000);
 
