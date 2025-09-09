@@ -18,7 +18,19 @@ public class ObjectListPage extends utils.SFPageBase {
 	
 	@FindBy(xpath = "//div[@class='slds-grid']//span[text() = 'Recently Viewed']/following::lightning-icon[@icon-name='utility:down'][2]")
 	private WebElement showmoreactions;
-
+	
+	@FindBy(xpath = "(//a[@title='Leads']/span[text()='Leads'])[last()]")
+	private WebElement clickOnLeadsTab;
+	
+	@FindBy(xpath = "//div[contains(@class, 'active')]//a[@title='New']")
+	private WebElement clickNewLeads;
+	
+	@FindBy(xpath = "//div[contains(@class,'active')]//a[text()='Marketing']")
+	private WebElement clickMarketingTab;
+	
+	@FindBy(xpath = "//li[@title='Details' and @class='slds-tabs_default__item slds-is-active'] | //a[@id='detailTab__item']")
+	private WebElement clickDetailsTab;
+	
 	public ObjectListPage(WebDriver webDriver) {
 		super(webDriver);
 		PageFactory.initElements(driver, this);// Creates instance for all web elements
@@ -70,5 +82,37 @@ public class ObjectListPage extends utils.SFPageBase {
 		Thread.sleep(5000);
 
 	}
+	
+	public void clickLeadsTab() throws InterruptedException {
 
+		SFClick(clickOnLeadsTab);
+
+		Thread.sleep(5000);
+
+	}
+	
+	public void clickNewLeads() throws InterruptedException {
+
+		SFClick(clickNewLeads);
+
+		Thread.sleep(5000);
+
+	}
+
+	public void clickMarketingTab() throws InterruptedException {
+
+		SFClick(clickMarketingTab);
+
+		Thread.sleep(5000);
+
+	}
+	
+	public void clickDetailsTab() throws InterruptedException {
+
+		SFClick(clickDetailsTab);
+
+		Thread.sleep(5000);
+
+	}
+	
 }

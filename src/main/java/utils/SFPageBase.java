@@ -521,7 +521,7 @@ public class SFPageBase extends PageBase {
 	}
 	public void assertFormValueSnags(String label, String expectedValue) throws Exception {
 		WebElement we;
-		String type = labelandtype.get(label);
+		//String type = labelandtype.get(label);
 		Thread.sleep(5000);
 		we = driver.findElement(By.xpath("//ul[@class='errorsList slds-list_dotted slds-m-left_medium']/li/a[text()='"+label+"']"));
 		Assert.assertEquals(we.getText(), expectedValue, "Field '" + label + "' value mismatch.");
