@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -54,7 +55,6 @@ public class BaseTest implements ExcelReader, PropertyReader {
 
 	private static final String InstalledVersionDetailPage = null;
 
-
 	protected static Actions action;
 	protected LightningLoginPage lightningloginpage;
 	protected ObjectListPage objectlistpage;
@@ -70,25 +70,21 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	public static String env;
 	public static String SFUserId;
 	public static String SFPassword;
-	public static String SFAPIPASSWORDSTRING_UAT;
-	public static String SFAPIUSERNAME_UAT ;
-	public static String SFAPITOKEN_UAT;
-	public static String SFAPIPASSWORD_UAT;
-	public static String SFAPILOGINURL_UAT;
 	public static String SFAPIGRANTSERVICE = "/services/oauth2/token?grant_type=password";
-	public static String SFAPICLIENTID_UAT;
-	public  static String SFAPICLIENTSECRET_UAT;
-
-
-	
-
-	
+	public static String environmentName;
+	public static String grantType;
+	public static String SFAPIUSERNAME;
+	public static String SFAPIPASSWORD;
+	public static String appUrl;
+	public static String apiUrl;
+	public static String SFAPICLIENTID;
+	public static String SFAPICLIENTSECRET;
+	public static List<?> roles;
 
 	@BeforeSuite(alwaysRun = true)
 	@Parameters({ "browserType" })
 	public void setupWebDriver(@Optional("chrome") String browserType) throws IOException {
 		// Fetch all the test data like URL, UserID and Passwords from config.json file
-		readConfigJsonFile();
 
 		if ((driver == null)) {
 			logger.info("setupWebDriver()");
@@ -103,31 +99,26 @@ public class BaseTest implements ExcelReader, PropertyReader {
 			System.out.println("Window height: " + driver.manage().window().getSize().getHeight());
 		}
 	}
+
 	@BeforeTest(alwaysRun = true)
 	public void cleanTestSetup() {
 		driver.manage().deleteAllCookies();
 	}
 
 	@BeforeClass(alwaysRun = true)
-	protected void setUp() throws MessagingException {
+	@Parameters({ "environmentName", "role" })   // <-- pass from testng.xml
+	protected void setUp(@Optional("NewQA") String environmentName, 
+	                     @Optional("SystemAdmin") String role) throws MessagingException {
+	    // Load env + role creds
+	    readEnvironmentConfigJsonFile(environmentName, role);
 
-		// Setting up email utils object
-//EmailUtils emu = new EmailUtils();
-		// Setting up Login for SF API requests
-		HTTPClientWrapper.SFLogin_API(SFAPILOGINURL_UAT, SFAPIGRANTSERVICE, SFAPICLIENTID_UAT, SFAPICLIENTSECRET_UAT,
-				SFAPIUSERNAME_UAT, SFAPIPASSWORD_UAT);
-		// Set up the common page objects and fetch the data to be used in most
-		// of the tests using Reflections concept
+	    // API login
+	    HTTPClientWrapper.SFLogin_API(environmentName, role);
 
-		lightningloginpage = (LightningLoginPage) pageFactory.getPageObject(LightningLoginPage.class.getName());
-		objectlistpage = (ObjectListPage) pageFactory.getPageObject(ObjectListPage.class.getName());
-		acne = (AccountListPage_new_example) pageFactory.getPageObject(AccountListPage_new_example.class.getName());
-
-
-		// Below is commented code as reference for reading data from properties file
-		// SFUserId = (String) getStaticData().get("SFLightning.userid");
-		// SFPassword = (String) getStaticData().get("SFLightning.password");
-
+	    // Page objects
+	    lightningloginpage = (LightningLoginPage) pageFactory.getPageObject(LightningLoginPage.class.getName());
+	    objectlistpage = (ObjectListPage) pageFactory.getPageObject(ObjectListPage.class.getName());
+	    acne = (AccountListPage_new_example) pageFactory.getPageObject(AccountListPage_new_example.class.getName());
 	}
 
 	@AfterMethod(alwaysRun = true)
@@ -150,7 +141,7 @@ public class BaseTest implements ExcelReader, PropertyReader {
 		logger.info("Ending Test  ---->" + method.getName());
 
 	}
-	
+
 	@AfterClass(alwaysRun = true)
 	public void deleteAllCookies() {
 		// Logging out of the Salesforce APIs
@@ -179,7 +170,6 @@ public class BaseTest implements ExcelReader, PropertyReader {
 		logger.info("Clearing all browser cookies...");
 		driver.manage().deleteAllCookies();
 
-
 	}
 
 	@AfterSuite(alwaysRun = true)
@@ -200,59 +190,30 @@ public class BaseTest implements ExcelReader, PropertyReader {
 		}
 	}
 
+	private void readEnvironmentConfigJsonFile(String envName, String roleName) {
+	    try {
+	        String sPath = new java.io.File(".").getCanonicalPath();
+	        File jsonFile = new File(sPath + File.separator + "src" + File.separator + "main" + File.separator
+	                + "resources" + File.separator + "environmentConfig.json");
 
-	private void readConfigJsonFile() {
-		{ // Here the commonly used Test data is read from the config.json file
-			// UAT stands for User Acceptance Testing and is a short hand for the
-			// environment name. Similarly it can be PROD, Sandbox etc
+	        appUrl = JsonPath.read(jsonFile, "$.environments." + envName + ".appUrl");
+	        apiUrl = JsonPath.read(jsonFile, "$.environments." + envName + ".apiUrl");
+	        grantType = JsonPath.read(jsonFile, "$.environments." + envName + ".grantType");
+	        SFAPICLIENTID = JsonPath.read(jsonFile, "$.environments." + envName + ".clientId");
+	        SFAPICLIENTSECRET = JsonPath.read(jsonFile, "$.environments." + envName + ".clientSecret");
 
-			try {
+	        // pick role-based creds
+	        SFAPIUSERNAME = JsonPath.read(jsonFile, "$.environments." + envName 
+	                + ".roles[?(@.role=='" + roleName + "')].username").toString().replace("[", "").replace("]", "");
+	        SFAPIPASSWORD = JsonPath.read(jsonFile, "$.environments." + envName 
+	                + ".roles[?(@.role=='" + roleName + "')].password").toString().replace("[", "").replace("]", "");
 
-				String sPath = new java.io.File(".").getCanonicalPath();
-				Log.info("Path: " + sPath);
-				File jsonFile = new File(sPath + File.separator + "src" + File.separator + "main" + File.separator
-						+ "resources" + File.separator + "config.json");
-				String salesforce_Lighteningenv = "Salesforce_Lightening";
-
-				Log.info("Reading Environment variables from json file");
-
-				env = (env == null) ? salesforce_Lighteningenv : env;
-
-				SFBaseURL = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.homePage");
-				SFUserId = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.userId");
-				SFPassword = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.passwd");
-				// Credentials for using the Connected app and accessing data via REST API
-				SFAPIUSERNAME_UAT = SFUserId;
-				//In the above line the API user name and UI login user name are same, but they could be different in your scenario and therefore kindly adjust as required
-
-				SFAPITOKEN_UAT = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.apitoken");
-
-
-			SFAPIPASSWORDSTRING_UAT = SFPassword;
-			
-			// password needs to be appended with token as per : //
-			// https://stackoverflow.com/questions/38334027/salesforce-oauth-authentication-bad-request-error
-
-			SFAPIPASSWORD_UAT = SFAPIPASSWORDSTRING_UAT + SFAPITOKEN_UAT;
-
-			SFAPILOGINURL_UAT = SFBaseURL;
-
-			//final String SFAPILOGINURL_UAT = "https://testzeus2-dev-ed.my.salesforce.com";
-
-			// Client id is the consumerkey for the connected app
-		 SFAPICLIENTID_UAT = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.SFAPICLIENTID_UAT");
-
-			// Client secret is the consumer secret protected static final String
-			SFAPICLIENTSECRET_UAT = (String) JsonPath.read(jsonFile, "$.environments." + env + ".UAT.SFAPICLIENTSECRET_UAT");
-					
-					
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-
-		}
-
+	    } catch (IOException e) {
+	        e.printStackTrace();
+	    }
 	}
+
+	
 
 	protected void writeDynamicJsonFile(String path, String value) {
 		try {// As we are using the dynamic json file as a local data store, we can write
@@ -299,12 +260,10 @@ public class BaseTest implements ExcelReader, PropertyReader {
 		}
 	}
 
-	
 	public File captureScreenShot() {
 		return new PageBase(driver).takeScreenshot();
 	}
 
-	
 	@Override
 	public Properties getStaticData() { // Method to read data from static data properties file
 		if (staticData == null) {

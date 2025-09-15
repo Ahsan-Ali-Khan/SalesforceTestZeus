@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suite name="Test Suite for Chat" thread-count="4" verbose="5">
     <parameter name="browserType" value="chrome" />
+    <parameter name="environmentName" value="P2QA" />
     <test name="smoke_test" preserve-order="true">
         <classes>
-            <!-- <class name="testscripts.AccountCreationViaUI" /> -->
-            <!-- <class name="testscripts.AccountCreationViaAPIs" /> -->
-            <!-- <class name="testscripts.CaseCreationViaUI" /> -->
-            <class name="testscripts.LeadCreationViaUI" />
+           <!-- <class name="testscripts.LeadCreationViaUI" /> -->
+           <class name="testscripts.SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Advertiser" />
+            <!-- <class name="testscripts.AccountLabelDrivenAPITest" /> -->
+           
         </classes>
     </test>
 </suite>

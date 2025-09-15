@@ -4,6 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
@@ -32,19 +36,73 @@ public class HTTPClientWrapper {
 	 */
 
 	private static String REST_ENDPOINT = "/services/data";
-	private static String API_VERSION = "/v54.0";
+	private static String API_VERSION = "/v64.0";
 	private static String baseUri;
 	private static Header oauthHeader;
 	private static Header prettyPrintHeader = new BasicHeader("X-PrettyPrint", "1");
+    private static final Map<String, Map<String, String>> describeCache = new HashMap<>();
 	private static HttpPost httpPost;
+	private static String loginInstanceUrl;
+	
 
 	// Initial steps for API access
 	// reset api token for user and enable connected app access in the Profile for
 	// System admin or user at hand
 	// UAT is appended as a shorthand reference for Pre-production testing, and is
 	// intended to keep the code easy to read. 📑
+	
+	public static String SFLogin_API(String envName, String roleName) {
+	    try {
+	        String apiUrl = EnvironmentConfigDto.getApiUrl(envName);
+	        String grantType = EnvironmentConfigDto.getGrantType(envName);
+	        String clientId = EnvironmentConfigDto.getClientId(envName);
+	        String clientSecret = EnvironmentConfigDto.getClientSecret(envName);
 
-	public static void SFLogin_API(String SFAPILOGINURL_UAT, String SFAPIGRANTSERVICE, String SFAPICLIENTID_UAT,
+	        String postUri;
+
+	        if ("password".equalsIgnoreCase(grantType)) {
+	            Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(envName, "SystemAdmin");
+	            postUri = apiUrl + "/services/oauth2/token?grant_type=password"
+	                    + "&client_id=" + clientId
+	                    + "&client_secret=" + clientSecret
+	                    + "&username=" + creds.get("username")
+	                    + "&password=" + creds.get("password");
+	        } else if ("client_credentials".equalsIgnoreCase(grantType)) {
+	            postUri = apiUrl + "/services/oauth2/token?grant_type=client_credentials"
+	                    + "&client_id=" + clientId
+	                    + "&client_secret=" + clientSecret;
+	        } else {
+	            throw new UnsupportedOperationException("❌ Unsupported grantType: " + grantType);
+	        }
+
+	        HttpClient httpclient = HttpClientBuilder.create().build();
+	        HttpPost httpPost = new HttpPost(postUri);
+	        httpPost.addHeader("Content-Type", "application/json");
+
+	        HttpResponse response = httpclient.execute(httpPost);
+
+	        int statusCode = response.getStatusLine().getStatusCode();
+	        if (statusCode != 200) {
+	            String body = EntityUtils.toString(response.getEntity());
+	            throw new RuntimeException("❌ API Login failed for " + envName 
+	                    + " (" + statusCode + "): " + body);
+	        }
+
+	        JSONObject json = new JSONObject(EntityUtils.toString(response.getEntity()));
+	        String accessToken = json.getString("access_token");
+	        loginInstanceUrl = json.getString("instance_url");
+
+	        baseUri = loginInstanceUrl + REST_ENDPOINT + API_VERSION;
+	        oauthHeader = new BasicHeader("Authorization", "OAuth " + accessToken);
+
+	        return loginInstanceUrl;
+
+	    } catch (Exception e) {
+	        throw new RuntimeException("❌ Error in Salesforce API Login for env=" + envName + ", role=" + roleName, e);
+	    }
+	}
+
+	public static String SFLogin_API(String SFAPILOGINURL_UAT, String SFAPIGRANTSERVICE, String SFAPICLIENTID_UAT,
 			String SFAPICLIENTSECRET_UAT, String SFAPIUSERNAME_UAT, String SFAPIPASSWORD_UAT) {
 
 		HttpClient httpclient = HttpClientBuilder.create().build();
@@ -84,7 +142,7 @@ public class HTTPClientWrapper {
 		if (statusCode != HttpStatus.SC_OK) {
 			System.out.println("Error authenticating to Force.com: " + statusCode);
 			// Error is in EntityUtils.toString(response.getEntity())
-			return;
+			return null;
 		}
 
 		String getResult = null;
@@ -96,7 +154,6 @@ public class HTTPClientWrapper {
 
 		JSONObject jsonObject = null;
 		String loginAccessToken = null;
-		String loginInstanceUrl = null;
 
 		try {
 			jsonObject = (JSONObject) new JSONTokener(getResult).nextValue();
@@ -114,12 +171,18 @@ public class HTTPClientWrapper {
 		System.out.println("instance URL: " + loginInstanceUrl);
 		System.out.println("baseUri: " + baseUri);
 		System.out.println("Created POST connection for SF REST API for Login purpose");
+		return loginInstanceUrl;
 	}
 
 	public static void SFLogout_API() {
 		httpPost.releaseConnection();
 		System.out.println("Releasing connection from SF REST API via HTTPClientWrapper");
 	}
+	
+	public static String getLoginInstanceUrl() {
+	    return loginInstanceUrl;
+	}
+
 
 	public static JSONObject runGetRequest(String uri) {
 		System.out.println("\n_______________ sObject Get Request _______________");
@@ -129,7 +192,7 @@ public class HTTPClientWrapper {
 			// Set up the HTTP objects needed to make the request.
 			HttpClient httpClient = HttpClientBuilder.create().build();
 
-			System.out.println("GET URI is" + baseUri + uri);
+			System.out.println("GET URI is " + baseUri + uri);
 
 			HttpGet httpGet = new HttpGet(baseUri + uri);
 			httpGet.addHeader(oauthHeader);
@@ -329,5 +392,147 @@ public class HTTPClientWrapper {
 		return null;
 
 	}
+	
+	// ------------------------------
+    // 🔹 Label-driven CREATE
+    // ------------------------------
+    public JSONObject createByLabels(String objectName, Map<String, Object> labelValueMap) throws Exception {
+    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
+    	
+        JSONObject body = new JSONObject();
+        for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
+            if (!labelToApi.containsKey(entry.getKey())) {
+            	System.out.println("Available labels: " + labelToApi.keySet());
+                throw new IllegalArgumentException("Invalid field label: " + entry.getKey());
+            }
+            body.put(labelToApi.get(entry.getKey()), entry.getValue());
+        }
 
+        String path = "/sobjects/" + objectName;
+        return create_sObject(path, body); // assumes you already have post() implemented
+    }
+
+    // ------------------------------
+    // 🔹 Label-driven UPDATE
+    // ------------------------------
+    public void updateByLabels(String objectName, String recordId, Map<String, Object> labelValueMap) throws Exception {
+    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
+
+        JSONObject body = new JSONObject();
+        for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
+            if (!labelToApi.containsKey(entry.getKey())) {
+                throw new IllegalArgumentException("Invalid field label: " + entry.getKey());
+            }
+            body.put(labelToApi.get(entry.getKey()), entry.getValue());
+        }
+
+        String path = "/sobjects/" + objectName + "/" + recordId;
+        update_sObjectDetails(path, body);
+    }
+
+    // ------------------------------
+    // 🔹 Label-driven GET
+    // ------------------------------
+    public JSONObject getByLabels(String objectName, String recordId, List<String> labels) throws Exception {
+    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
+
+        List<String> apiFields = new ArrayList<>();
+        for (String label : labels) {
+            if (!labelToApi.containsKey(label)) {
+                throw new IllegalArgumentException("Invalid field label: " + label);
+            }
+            apiFields.add(labelToApi.get(label));
+        }
+
+        String query = String.join(",", apiFields);
+        String path = "/sobjects/" + objectName + "/" + recordId + "?fields=" + query;
+
+        return runGetRequest(path); // assumes you already have get() implemented
+    }
+
+    // ------------------------------
+    // 🔹 DELETE
+    // ------------------------------
+    public void deleteRecord(String objectName, String recordId) throws Exception {
+    	String path = "/sobjects/" + objectName + "/" + recordId;
+        runDeleteRequest(path); // assumes you already have delete() implemented
+    }
+
+    // ------------------------------
+    // 🔹 Label-driven QUERY
+    // ------------------------------
+    public JSONObject queryByLabels(String objectName, List<String> labels, String whereClause) throws Exception {
+    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
+
+        List<String> apiFields = new ArrayList<>();
+        for (String label : labels) {
+            if (!labelToApi.containsKey(label)) {
+                throw new IllegalArgumentException("Invalid field label: " + label);
+            }
+            apiFields.add(labelToApi.get(label));
+        }
+
+        String query = "SELECT " + String.join(",", apiFields) + " FROM " + objectName;
+        if (whereClause != null && !whereClause.isEmpty()) {
+            query += " WHERE " + whereClause;
+        }
+
+        String path = "/query?q=" + query;
+        return runGetRequest(path);
+    }
+
+    // ------------------------------
+    // 🔹 Describe & Cache
+    // ------------------------------
+    
+ // Cache for combined UI-API + Describe labels
+    private static final Map<String, Map<String, String>> labelToApiCache = new HashMap<>();
+
+    // ------------------------------
+    // 🔹 Combined Label-to-API mapping
+    // ------------------------------
+    public Map<String, String> getLabelToApiMap(String objectName) throws Exception {
+        // 1️⃣ Return cached mapping if already available
+        if (describeCache.containsKey(objectName)) {
+            return describeCache.get(objectName);
+        }
+
+        Map<String, String> labelToApi = new HashMap<>();
+
+        // 2️⃣ Try UI-API first for better label mapping
+        try {
+            String uiApiPath = "/ui-api/object-info/" + objectName; // relative to baseUri
+            JSONObject uiApiResponse = runGetRequest(uiApiPath);
+
+            JSONObject fields = uiApiResponse.getJSONObject("fields");
+
+            for (String apiName : fields.keySet()) {
+                JSONObject field = fields.getJSONObject(apiName);
+                String label = field.getString("label");
+                labelToApi.put(label, apiName);
+            }
+
+            System.out.println("UI-API label mapping loaded for: " + objectName);
+        } catch (Exception e) {
+            System.out.println("UI-API fetch failed, falling back to sObject describe: " + e.getMessage());
+
+            // 3️⃣ Fallback: sObject describe
+            String describePath = "/sobjects/" + objectName + "/describe"; // relative to baseUri
+            JSONObject describeResponse = runGetRequest(describePath);
+
+            JSONArray fieldsArray = describeResponse.getJSONArray("fields");
+            for (int i = 0; i < fieldsArray.length(); i++) {
+                JSONObject field = fieldsArray.getJSONObject(i);
+                labelToApi.put(field.getString("label"), field.getString("name"));
+            }
+
+            System.out.println("sObject Describe label mapping loaded for: " + objectName);
+        }
+
+        // 4️⃣ Cache for future use
+        describeCache.put(objectName, labelToApi);
+        return labelToApi;
+    }
+    
+    
 }

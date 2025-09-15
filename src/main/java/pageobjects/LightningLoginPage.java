@@ -2,6 +2,7 @@ package pageobjects;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.NoAlertPresentException;
@@ -12,6 +13,8 @@ import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+
+import utils.EnvironmentConfigDto;
 
 public class LightningLoginPage extends utils.SFPageBase {
 
@@ -34,6 +37,11 @@ public class LightningLoginPage extends utils.SFPageBase {
     public LightningLoginPage(WebDriver webDriver) {
         super(webDriver);
         PageFactory.initElements(webDriver, this); // use the parameter instead of raw driver
+    }
+    
+    public void loginWithRole(String envName, String roleName) throws InterruptedException {
+        Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(envName, roleName);
+        login(creds.get("username"), creds.get("password"));
     }
 
     /**
@@ -64,6 +72,8 @@ public class LightningLoginPage extends utils.SFPageBase {
 
         waitForSFPagetoLoad();
     }
+    
+    
 
     /**
      * Launch specific Salesforce app from App Launcher.

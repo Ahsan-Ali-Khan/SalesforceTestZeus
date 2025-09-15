@@ -25,8 +25,6 @@ public class AccountCreationViaAPIs extends BaseTest {
 		JSONObject responseObject = HTTPClientWrapper.create_sObject(uri, accountdata);
 		String accountID = responseObject.getString("id");
 		System.out.println("Account created as : " + accountID);
-		
-		String recordid = "001VZ00000Ub9PfYAJ";
-		objectlistpage.uiApiParser(recordid);
+		objectlistpage.uiApiParser(accountID);
 	}
 }

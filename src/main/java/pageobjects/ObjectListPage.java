@@ -5,7 +5,7 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
 
-public class ObjectListPage extends utils.SFPageBase {
+public class ObjectListPage extends utils.SFPageBase2 {
 
 	@FindBy(xpath = "//a[@title='New']")
 	private WebElement newbutton;

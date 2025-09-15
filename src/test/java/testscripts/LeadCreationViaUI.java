@@ -22,27 +22,30 @@ public class LeadCreationViaUI extends BaseTest {
 		// Submitting user id, password and logging in
 		lightningloginpage.login(SFUserId, SFPassword);
 		// Navigating directly to Lead list page
-		lightningloginpage.applauncher("Lead");
-		objectlistpage.clickShowMoreActions();
-		objectlistpage.clickNew();
+//		lightningloginpage.applauncher("Lead");
+//		objectlistpage.clickShowMoreActions();
+//		objectlistpage.clickNew();
 
-		String recordid = "00QVZ00000F0uuP2AR";
-		objectlistpage.uiApiParser(recordid);
+//		
+//		// Form data can be passed directly on the new sObject creation screen
+//		objectlistpage.formValueFiller("Salutation",
+//				"Mr.");
+//		objectlistpage.formValueFiller("First Name",
+//				"Webo");
+//        objectlistpage.formValueFiller("Email",
+//				"Test12322@gmail.com");
+//        objectlistpage.formValueFiller("Business Legal Name",
+//        		"Test Business Legal Name 128");
+//
+//        objectlistpage.formValueFiller("Last Name",
+//        		"Test");
+//
+//		objectlistpage.clickSave();
 		
-		// Form data can be passed directly on the new sObject creation screen
-		objectlistpage.formValueFiller("Salutation",
-				"Mr.");
-		objectlistpage.formValueFiller("First Name",
-				"Webo");
-        objectlistpage.formValueFiller("Email",
-				"Test1234235@gmail.com");
-        objectlistpage.formValueFiller("Business Legal Name",
-        		"Test Business Legal Name");
+		String recordId = objectlistpage.getRecordIdFromUiLabel_Optimized("Account", "Account Name", "webo0409");
 
-        objectlistpage.formValueFiller("Last Name",
-        		"Test");
-
-		objectlistpage.clickSave();
+		// navigate to record (builds lightning URL and opens it)
+		objectlistpage.NavigateToRecord("Account", recordId);
 		System.out.println("Thank you :) ");
 
 	}
