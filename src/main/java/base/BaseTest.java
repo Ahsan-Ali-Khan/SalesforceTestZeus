@@ -36,7 +36,6 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 
 import pageobjects.ObjectListPage;
-import pageobjects.AccountListPage_new_example;
 import pageobjects.LightningLoginPage;
 import utils.GetSFApps;
 import utils.HTTPClientWrapper;
@@ -58,7 +57,6 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	protected static Actions action;
 	protected LightningLoginPage lightningloginpage;
 	protected ObjectListPage objectlistpage;
-	protected AccountListPage_new_example acne;
 
 	public static String SFBaseURL; // This is the base URL like https://test-ea.lightning.force.com/
 
@@ -118,7 +116,6 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	    // Page objects
 	    lightningloginpage = (LightningLoginPage) pageFactory.getPageObject(LightningLoginPage.class.getName());
 	    objectlistpage = (ObjectListPage) pageFactory.getPageObject(ObjectListPage.class.getName());
-	    acne = (AccountListPage_new_example) pageFactory.getPageObject(AccountListPage_new_example.class.getName());
 	}
 
 	@AfterMethod(alwaysRun = true)
