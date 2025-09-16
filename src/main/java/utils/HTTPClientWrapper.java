@@ -30,6 +30,7 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import base.BaseTest;
+import utils.MetadataCache.FieldInfo;
 
 public class HTTPClientWrapper {
 	/*
@@ -82,7 +83,7 @@ public class HTTPClientWrapper {
 	        }
 
 	        HttpClient httpclient = HttpClientBuilder.create().build();
-	        HttpPost httpPost = new HttpPost(postUri);
+	        httpPost = new HttpPost(postUri);
 	        httpPost.addHeader("Content-Type", "application/json");
 
 	        HttpResponse response = httpclient.execute(httpPost);
@@ -485,15 +486,12 @@ public class HTTPClientWrapper {
     // 🔹 Label-driven CREATE
     // ------------------------------
 	public JSONObject createByLabels(String objectName, Map<String, Object> labelValueMap) throws Exception {
-	    Map<String, String> labelToApi = getLabelToApiMap(objectName);
+	    Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(objectName);
 	    JSONObject body = new JSONObject();
 
-	    List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
-
 	    for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
-	        String inputKey = entry.getKey();
-	        String apiName = resolveApiName(inputKey, labelToApi, suffixes);
-
+	        String label = entry.getKey();
+	        String apiName = resolveApiName(label, fields); 
 	        body.put(apiName, entry.getValue());
 	    }
 
@@ -506,23 +504,24 @@ public class HTTPClientWrapper {
     // ------------------------------
     // 🔹 Label-driven UPDATE
     // ------------------------------
-    public void updateByLabels(String objectName, String recordId, Map<String, Object> labelValueMap) throws Exception {
-    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
-    	
+	public void updateByLabels(String objectName, String recordId, Map<String, Object> labelValueMap) throws Exception {
+	    // Get field metadata mapping for the object
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(objectName);
 
-	    List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
+	    JSONObject body = new JSONObject();
 
-        JSONObject body = new JSONObject();
-        for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
+	    for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
 	        String inputKey = entry.getKey();
-	        String apiName = resolveApiName(inputKey, labelToApi, suffixes);
+
+	        // Resolve the API name using MetadataCache.FieldInfo
+	        String apiName = resolveApiName(inputKey, fields);
 
 	        body.put(apiName, entry.getValue());
 	    }
 
-        String path = "/sobjects/" + objectName + "/" + recordId;
-        update_sObjectDetails(path, body);
-    }
+	    String path = "/sobjects/" + objectName + "/" + recordId;
+	    update_sObjectDetails(path, body);
+	}
 
     // ------------------------------
     // 🔹 Label-driven GET
@@ -608,43 +607,32 @@ public class HTTPClientWrapper {
         });
     }
     
-    /**
-	 * Resolves the API name from the inputKey by attempting transformations.
-	 * It tries:
-	 * 1. Exact match
-	 * 2. Replacing spaces with underscores and matching
-	 * 3. Adding suffixes and matching
-	 */
-	private String resolveApiName(String inputKey, Map<String, String> labelToApi, List<String> suffixes) {
-	    // 1. Exact match
-	    if (labelToApi.containsKey(inputKey)) {
-	    	if ("CAM ID".equalsIgnoreCase(inputKey)) {
-        	System.out.println(inputKey + "" + labelToApi);
-        	
-	    	}
-	        return labelToApi.get(inputKey);
-	    }
+    private String resolveApiName(String inputLabel, Map<String, MetadataCache.FieldInfo> fields) {
+        List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
 
-	    // 2. Replace spaces with underscores
-	    String underscored = inputKey.replace(" ", "_");
-//	    if (labelToApi.containsKey(underscored)) {
-//	        return labelToApi.get(underscored);
-//	    }
+        // 1. Exact match
+        if (fields.containsKey(inputLabel)) {
+            return fields.get(inputLabel).apiName;
+        }
 
-	    // 3. Try adding suffixes
-	    for (String suffix : suffixes) {
-	        String withSuffix = underscored + suffix;
-	        if (labelToApi.containsKey(withSuffix)) {
+        // 2. Replace spaces with underscores
+        String underscored = inputLabel.replace(" ", "_");
+        if (fields.containsKey(underscored)) {
+            return fields.get(underscored).apiName;
+        }
 
-	        	System.out.println(" Found with >>" + withSuffix);
-	            return labelToApi.get(withSuffix);
-	        }
-	    }
+        // 3. Try appending suffixes
+        for (String suffix : suffixes) {
+            String withSuffix = underscored + suffix;
+            if (fields.containsKey(withSuffix)) {
+                System.out.println("Found with suffix >> " + withSuffix);
+                return fields.get(withSuffix).apiName;
+            }
+        }
 
-	    
-	    throw new IllegalArgumentException("Invalid field label: '" + inputKey +
-	            "'. Allowed fields (sample): " + labelToApi.keySet());
-	}
+        throw new IllegalArgumentException("Invalid field label: '" + inputLabel +
+                "'. Allowed fields (sample): " + fields.keySet());
+    }
 
     /**
      * Builds a mapping of Label → API name and API → API name.

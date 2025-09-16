@@ -16,20 +16,12 @@ import utils.HTTPClientWrapper;
 public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Advertiser extends BaseTest {
 
 	public String randomLetters(int length) {
-        // Initialize a StringBuilder to construct the result
         StringBuilder result = new StringBuilder(length);
-
-        // Create a Random instance for random number generation
         Random random = new Random();
-
-        // Generate random uppercase letters
         for (int i = 0; i < length; i++) {
-            // Randomly select a letter between 'A' and 'Z'
             char randomChar = (char) ('A' + random.nextInt(26));
             result.append(randomChar);
         }
-
-        // Return the generated string
         return result.toString();
     }
 	
@@ -40,11 +32,11 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 	
 	@Test
 	public void editAccount() throws Exception {
-	    // Create account via API
 
 		String randomLetters = randomLetters(5);
 	    String FirstName = "WebomatesFirst" + new Random().nextInt(10000);
 		String accountName = "Webomates " + randomLetters +" "+ new Random().nextInt(1000000);
+		String accountName2 = "Webomates " + randomLetters +" "+ new Random().nextInt(1000000);
 	    String street = new Random().nextInt(10000) + " High Ridge Rd";
 	    String email = FirstName + "@"+ randomLetters + new Random().nextInt(10000) +".com";
 	    String website = "www." + randomLetters + new Random().nextInt(10000) + ".com";
@@ -55,6 +47,7 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
         }
 
         String phone = phoneNumberBuilder.toString();
+        String phone2 = phoneNumberBuilder.toString();
         String camId = randomWithRange( "32", 1000, 9999);
 
 	    HTTPClientWrapper client = new HTTPClientWrapper();
@@ -116,103 +109,68 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 	 // Get the Id back
 	 String accountId = createdAccount.getString("id");
 	 System.out.println("Created Account Id: " + accountId);
-	    try {
-	    // UI login + navigate
-	    lightningloginpage.openHomepage(appUrl);
-	    lightningloginpage.loginWithRole("SystemAdmin");
-	    lightningloginpage.applauncher("Account");
+		try {
+			// UI login + navigate
+			lightningloginpage.openHomepage(appUrl);
+			lightningloginpage.loginWithRole("SystemAdmin");
+			lightningloginpage.applauncher("Account");
 
-		String recordID = objectlistpage.getRecordIdFromUiLabel_Optimized("Account", "Account Name", accountName);
-		objectlistpage.NavigateToRecord("Account", recordID);
-		objectlistpage.uiApiParser(recordID);
+			String recordID = objectlistpage.getRecordIdFromUiLabel_Optimized("Account", "Account Name", accountName);
+			objectlistpage.NavigateToRecord("Account", recordID);
+			objectlistpage.uiApiParser(recordID);
 
-		objectlistpage.clickEditByFieldLabel("Status");
-		objectlistpage.formValueFiller("Status", "Active");
-		objectlistpage.clickSave();
+			objectlistpage.clickEditByFieldLabel("Status");
+			objectlistpage.formValueFiller("Status", "Active");
+			objectlistpage.clickSave();
+			objectlistpage.assertFieldLabelAndValue("Prospect Type", "Advertiser");
+			objectlistpage.assertFieldLabelAndValue("Account Record Type", "Prospect");
+			objectlistpage.assertFieldLabelAndValue("Status", "Active");
+			objectlistpage.assertFieldLabelAndValue("Industry", "ALCOH BEVS-BEER");
+			objectlistpage.assertFieldLabelAndValue("Shipping Address", street + "\nStamford, Connecticut 06905\nUnited States");
+			objectlistpage.assertFieldLabelAndMap("Shipping Address", 30);
+			objectlistpage.assertFieldLabelAndValue("Website", website);
+			objectlistpage.clickEditByFieldLabel("Account Name");
+			objectlistpage.assertFormValueByLabel("Prospect Type", "Advertiser");
+			objectlistpage.assertFormValueByLabel("Shipping Street", street);
+			objectlistpage.assertFormValueByLabel("Shipping State/Province", "Connecticut");
+			objectlistpage.assertFormValueByLabel("Shipping Zip/Postal Code", "06905");
+			objectlistpage.assertFormValueByLabel("Account Name", accountName);
+			objectlistpage.assertFormValueByLabel("Website", website);
+			objectlistpage.formValueFillerClearInput("Account Name");
+			objectlistpage.clickSave();
+			objectlistpage.assertFormErrorValueByLabel("Account Name", "Complete this field");
+			objectlistpage.assertFormValueSnags("Account Name", "Account Name");
+			objectlistpage.formValueFiller("Account Name", accountName2);
+			objectlistpage.formValueFiller("Industry", "--None--");
+			objectlistpage.formValueFiller("Phone", phone2);
+			objectlistpage.clickSave();
+			objectlistpage.assertFieldLabelAndValue("Account Name", accountName2);
+			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "");
+			objectlistpage.clickEditByFieldLabel("Account Name");
+			objectlistpage.formValueFiller("Advertiser Type", "[Local]");
+			objectlistpage.clickSave();
+			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "Local");
+			objectlistpage.assertFieldLabelAndValue("Website", website);
+			objectlistpage.assertFieldLabelAndValue("Industry", "");
+			objectlistpage.clickEditByFieldLabel("Status");
+			objectlistpage.formValueFiller("Status", "New");
+			objectlistpage.clickSave();
+			objectlistpage.assertFieldLabelAndValue("Status", "New");
 
-		objectlistpage.assertFieldLabelAndValue("Prospect Type", "Advertiser");
-		objectlistpage.assertFieldLabelAndValue("Account Record Type", "Prospect");
-		objectlistpage.assertFieldLabelAndValue("Status", "Active");
-		objectlistpage.assertFieldLabelAndValue("Industry", "ALCOH BEVS-BEER");
-		objectlistpage.assertFieldLabelAndValue("Shipping Address",
-				street + "\nStamford, Connecticut 06905\nUnited States");
-		objectlistpage.assertFieldLabelAndMap("Shipping Address", 30);
-		objectlistpage.assertFieldLabelAndValue("Website", website);
+		} catch (Exception e) {
 
-		objectlistpage.clickEditByFieldLabel("Account Name");
+			client.deleteRecord("Account", accountId);
+			System.out.println("\nDeleted Account: " + accountId);
 
-		objectlistpage.assertFormValue("Prospect Type", "Advertiser");
-		objectlistpage.assertFormValue("Shipping Street", street);
-		// locator making problem
-		 objectlistpage.assertFormValue("Shipping State/Province Code", "Stamford");
-		 objectlistpage.assertFormValue("Shipping Zip/Postal Code", "06905");
-		// expected is below and actual is blank showing
-		 objectlistpage.assertFormValue("Account Name", accountName);
-		 objectlistpage.assertFormValue("Website", website);
+			JSONObject deletedCheck = HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
+			if (deletedCheck == null) {
+				System.out.println("Verified: Account successfully deleted.");
+			} else {
+				System.out.println("Account still exists!");
+			}
 
-		// filling blank but it is not filling blank
-		objectlistpage.formValueFillerClearInput("Account Name");
-
-		objectlistpage.clickSave();
-
-		// objectlistpage.assertFormValue("Account Name", "Complete this field");
-		objectlistpage.assertFormValueSnags("Account Name", "Account Name");
-
-		objectlistpage.formValueFiller("Account Name", "WeboTest01");
-		// not working
-		// objectlistpage.formValueFiller("Industry","--None--");
-		// objectlistpage.formValueFiller("Phone","9424312578");
-
-		objectlistpage.clickSave();
-
-		objectlistpage.assertFieldLabelAndValue("Account Name", "WeboTest01");
-		objectlistpage.assertFieldLabelAndValue("Advertiser Type", "");
-
-		objectlistpage.clickEditByFieldLabel("Account Name");
-
-		// not working this form filler
-		// objectlistpage.formValueFiller("Advertiser Type","Local");
-
-		driver.findElement(By.xpath(
-				"//div[contains(@class, 'active')]//div[normalize-space()='Advertiser Type']/parent::div//span[normalize-space()='Available']/following-sibling::div//li[@role='presentation']//span/span[normalize-space()='Local']"))
-				.click();
-		objectlistpage.moveSelectiontoChoosen();
-		objectlistpage.clickSave();
-
-		objectlistpage.assertFieldLabelAndValue("Advertiser Type", "Local");
-		// website locator not working
-		// objectlistpage.assertFieldLabelAndValue("Website", "www.FRARK3285.com");
-
-		Assert.assertEquals(driver.findElement(By.xpath("//lightning-formatted-url")).getText(), "www.FRARK3285.com");
-		objectlistpage.assertFieldLabelAndValue("Industry", "ALCOH BEVS-BEER");
-
-		objectlistpage.clickEditByFieldLabel("Status");
-
-		objectlistpage.formValueFiller("Status", "New");
-		objectlistpage.clickSave();
-
-		objectlistpage.assertFieldLabelAndValue("Status", "New");
-	    }catch (Exception e) {
-			
-		client.deleteRecord("Account", accountId);
-        System.out.println("\nDeleted Account: " + accountId);
-
-        // -----------------------------
-        // 5️⃣ Verify deletion
-        // -----------------------------
-        JSONObject deletedCheck = HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
-        if (deletedCheck == null) {
-            System.out.println("Verified: Account successfully deleted.");
-        } else {
-            System.out.println("Account still exists!");
-        }
-
-        // -----------------------------
-        // Logout
-        // -----------------------------
-//        HTTPClientWrapper.SFLogout_API();
-        throw e;
-	    }
+			throw e;
+		}
 
 	}
 	

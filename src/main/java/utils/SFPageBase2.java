@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -39,6 +41,8 @@ public class SFPageBase2 extends PageBase {
 	protected static String uiapi_record_json;
 	private static ArrayList<String> listoflabels;
 	protected static HashMap<String, String> labelandtype;
+	private String extractedObjectName;
+    private static final int DEFAULT_WAIT_SECONDS = 30;
 
 	public SFPageBase2(WebDriver driver) {
 		super(driver);
@@ -133,13 +137,31 @@ public class SFPageBase2 extends PageBase {
 	// ============================================================
 	// --- UI API Data Handling Section ---
 	// ============================================================
-	public static void uiApiHitter(String recordID) throws IOException {
-		uiapi_record_json = (HTTPClientWrapper
-				.runGetRequest("/ui-api/record-ui/" + recordID + "?formFactor=Large&modes=View,Edit")).toString();
-		try (FileWriter file = new FileWriter(System.getProperty("user.dir") + "\\output.json")) {
-			file.write(uiapi_record_json);
-		}
-	}
+	
+	
+	public void uiApiHitter(String recordId) throws Exception {
+		uiapi_record_json = HTTPClientWrapper.runGetRequest("/ui-api/record-ui/" + recordId + "?formFactor=Large&modes=View,Edit").toString();
+
+        try {
+            
+            JSONArray extractedObjectNames = new org.json.JSONArray(JsonPath.read(uiapi_record_json, "$..objectApiName").toString());
+            extractedObjectName = extractedObjectNames.getString(0);
+        } catch (Exception e) {
+            // ignore and fallback
+        }
+
+        if (extractedObjectName == null || extractedObjectName.isEmpty()) {
+            String prefix = recordId.substring(0, 3);
+            extractedObjectName = ObjectPrefixCache.getObjectName(prefix);
+            if (extractedObjectName == null) {
+                throw new RuntimeException("Cannot resolve object name for recordId: " + recordId);
+            }
+            System.out.println(" Fallback used: Object name from prefix = " + extractedObjectName);
+        } else {
+            System.out.println(" Object name extracted from response: " + extractedObjectName);
+        }
+    }
+	
 
 	public static void sectionGetter() throws Exception {
 		String apipath = "$..objectApiName";
@@ -171,12 +193,23 @@ public class SFPageBase2 extends PageBase {
 			labelandtype.put(label, datatype);
 		}
 	}
+	
+	public void loadFields() throws Exception {
+        if (extractedObjectName == null || extractedObjectName.isEmpty()) {
+            throw new IllegalStateException("Object name not resolved. Call uiApiHitter first.");
+        }
+        Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(extractedObjectName);
+        listoflabels = new ArrayList<>(fields.keySet());
+        labelandtype = new HashMap<>();
+        for (String label : fields.keySet()) {
+            labelandtype.put(label, fields.get(label).dataType);
+        }
+    }
 
-	public void uiApiParser(String recordid) throws Exception {
+	public void uiApiParser( String recordid) throws Exception {
 		uiApiHitter(recordid);
 		sectionGetter();
-		labelGetter();
-		dataTypeGetter();
+		loadFields();
 	}
 
 	public static String getFieldNameFromLabel_SOBJECT_DESCRIBE(String objectApiName, String label) throws Exception {
@@ -316,27 +349,24 @@ public class SFPageBase2 extends PageBase {
 		SFClick(firstVisibleSuggestion);
 	}
 
+	// Get field element by label
 	public WebElement getFieldElementByLabel(String label) throws Exception {
-		String type = labelandtype.get(label);
-		String xpath;
-		if (type == null) {
-			System.out.println(labelandtype);
-		}
-		switch (type) {
-		case "TextArea":
-			xpath = String.format("//textarea[@id=string(//label[text()='%s']/@for)]", label);
-			break;
-		case "Picklist":
-			xpath = String.format("//button[@id=string(//label[text()='%s']/@for)]", label);
-			break;
-		default:
-			xpath = String.format("//input[@id=string(//label[text()='%s']/@for)]", label);
-		}
-		return driver.findElement(By.xpath(xpath));
+	    String xpath = getFieldXPath(label);
+	    return findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	}
+
+	// Get error message element by label
+	public WebElement getFieldElementErrorByLabel(String label) throws Exception {
+	    String xpath = "//div[contains(@class,'active')]//div[@id=string(" +
+	            "//input[@id=string(//label[text()='" + label + "']/@for)]/@aria-describedby | " +
+	            "//textarea[@id=string(//label[text()='" + label + "']/@for)]/@aria-describedby | " +
+	            "//button[@id=string(//label[text()='" + label + "']/@for)]/@aria-describedby" +
+	            ")]";
+	    return findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	}
 
 	public void clickButtonByLabel(String buttonText) {
-		String xpath = String.format("//button[normalize-space(.)='%s']", buttonText);
+		String xpath = String.format("//div[contains(@class,\"active\")]//button[normalize-space(.)='%s']", buttonText);
 		try {
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
 			WebElement button = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
@@ -349,103 +379,236 @@ public class SFPageBase2 extends PageBase {
 	// ============================================================
 	// --- Form Handling Section ---
 	// ============================================================
-	public void formValueFiller(String label, String targetvalue) throws Exception {
-		// This method automagically uses the label and datatypes to fill the form on
-		// the fly
-		// And reduces the pain for creation and maintenance of separate pageobjects and
-		// web elements
-		WebElement we;
-		String type = labelandtype.get(label);
-		switch (type) {
-		case "String":
-		case "Url":
-		case "Int":
-		case "Phone":
-		case "Currency":
-		case "Double":
-		case "Date":
-		case "Boolean":
-		case "Email":
-			Thread.sleep(5000);
-			// Locator design inspired by
-			// https://trailblazers.salesforce.com/_ui/core/chatter/groups/GroupProfilePage?g=0F93A000000DQPd&fId=0D54S000008HKSK
-			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.sendKeys(targetvalue);
-			System.out.println("Sent values as " + targetvalue);
-			break;
-		case "TextArea":
-			we = driver.findElement(By.xpath("//textarea[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.sendKeys(targetvalue);
-			System.out.println("Sent values as " + targetvalue);
-			break;
-		case "Picklist":
-			we = driver.findElement(By.xpath("//button[@id=string(//label[text()='" + label + "']/@for)]"));
-			waitAndClick(we);
-			we.sendKeys(targetvalue);
-			Thread.sleep(2000);
-			we.sendKeys(Keys.ENTER);
-			System.out.println("Selected " + targetvalue);
-			break;
-		case "Reference":
-			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.sendKeys(Keys.ARROW_DOWN);
-			Thread.sleep(2000);
-			we.sendKeys(Keys.ENTER);
-			System.out.println("Sent values as " + targetvalue);
-			break;
-		}
+	// Fill form field by label and value
+	public void formValueFiller(String label, String targetValue) throws Exception {
+	    WebElement field = getFieldElementByLabel(label);
+	    scrollIntoView(field);
+	    String type = labelandtype.get(label);
 
+	    switch (type) {
+	        case "String":
+	        case "Url":
+	        case "Int":
+	        case "Phone":
+	        case "Currency":
+	        case "Double":
+	        case "Date":
+	        case "Boolean":
+	        case "Email":
+	        case "TextArea":
+	            clearAndSendKeys(field, targetValue);
+	            break;
+	        case "Picklist":
+	            waitAndClick(field);
+	            field.sendKeys(targetValue);
+	            Thread.sleep(2000);
+	            field.sendKeys(Keys.ENTER);
+	            break;
+	        case "MultiPicklist":
+	            fillMultiPicklist(label, targetValue);
+	            break;
+	        case "Reference":
+	            field.sendKeys(targetValue);
+	            field.sendKeys(Keys.ARROW_DOWN);
+	            Thread.sleep(2000);
+	            field.sendKeys(Keys.ENTER);
+	            break;
+	        default:
+	            throw new Exception("Unsupported field type: " + type);
+	    }
 	}
-	public void formValueFillerClearInput(String label) throws Exception {
-		// This method automagically uses the label and datatypes to fill the form on
-		// the fly
-		// And reduces the pain for creation and maintenance of separate pageobjects and
-		// web elements
-		WebElement we;
-		String type = labelandtype.get(label);
-		switch (type) {
-		case "String":
-		case "Url":
-		case "Int":
-		case "Phone":
-		case "Currency":
-		case "Double":
-		case "Date":
-		case "Boolean":
-		case "Email":
-			Thread.sleep(5000);
-			// Locator design inspired by
-			// https://trailblazers.salesforce.com/_ui/core/chatter/groups/GroupProfilePage?g=0F93A000000DQPd&fId=0D54S000008HKSK
-			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.clear();
-			System.out.println("Clear values as ");
-			break;
-		case "TextArea":
-			we = driver.findElement(By.xpath("//textarea[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.clear();
-			System.out.println("Clear values as " );
-			break;
-		case "Picklist":
-			we = driver.findElement(By.xpath("//button[@id=string(//label[text()='" + label + "']/@for)]"));
-			waitAndClick(we);
-			we.clear();
-			System.out.println("Selected " );
-			break;
-		case "Reference":
-			we = driver.findElement(By.xpath("//input[@id=string(//label[text()='" + label + "']/@for)]"));
-			we.clear();
-			System.out.println("Clear values as ");
-			break;
-		}
 
+	// Overloaded version with custom wait time
+	public void formValueFiller(String label, String targetValue, int waitInSeconds) throws Exception {
+	    WebElement field = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
+	    scrollIntoView(field);
+	    String type = labelandtype.get(label);
+
+	    switch (type) {
+	        case "String":
+	        case "Url":
+	        case "Int":
+	        case "Phone":
+	        case "Currency":
+	        case "Double":
+	        case "Date":
+	        case "Boolean":
+	        case "Email":
+	        case "TextArea":
+	            clearAndSendKeys(field, targetValue);
+	            break;
+	        case "Picklist":
+	            waitAndClick(field);
+	            field.sendKeys(targetValue);
+	            Thread.sleep(2000);
+	            field.sendKeys(Keys.ENTER);
+	            break;
+	        case "MultiPicklist":
+	            fillMultiPicklist(label, targetValue);
+	            break;
+	        case "Reference":
+	            field.sendKeys(targetValue);
+	            field.sendKeys(Keys.ARROW_DOWN);
+	            Thread.sleep(2000);
+	            field.sendKeys(Keys.ENTER);
+	            break;
+	        default:
+	            throw new Exception("Unsupported field type: " + type);
+	    }
+	}
+
+	// Clear input by label
+	public void formValueFillerClearInput(String label) throws Exception {
+	    WebElement field = getFieldElementByLabel(label);
+	    scrollIntoView(field);
+	    String type = labelandtype.get(label);
+
+	    switch (type) {
+	        case "String":
+	        case "Url":
+	        case "Int":
+	        case "Phone":
+	        case "Currency":
+	        case "Double":
+	        case "Date":
+	        case "Boolean":
+	        case "Email":
+	        case "TextArea":
+	        case "Reference":
+	            field.clear();
+	            break;
+	        case "Picklist":
+	            waitAndClick(field);
+	            field.clear();
+	            break;
+	        case "MultiPicklist":
+	            clearMultiPicklist(label);
+	            break;
+	        default:
+	            throw new Exception("Unsupported field type: " + type);
+	    }
+	}
+	
+	// ===============================
+	// Helper Methods
+	// ===============================
+
+	private String getFieldXPath(String label) throws Exception {
+	    String type = labelandtype.get(label);
+	    if (type == null) {
+	        throw new Exception("Label not found: " + label);
+	    }
+	    switch (type) {
+	        case "Reference":
+	        case "String":
+	        case "Url":
+	        case "Int":
+	        case "Phone":
+	        case "Currency":
+	        case "Double":
+	        case "Date":
+	        case "Boolean":
+	        case "Email":
+	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)]";
+	        case "TextArea":
+	            return "//div[contains(@class,'active')]//textarea[@id=string(//label[text()='" + label + "']/@for)]";
+	        case "Picklist":
+	            return "//div[contains(@class,'active')]//button[@id=string(//label[text()='" + label + "']/@for)] | " +
+	                   "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)]";
+	        case "MultiPicklist":
+	            return "//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='" + label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')]";
+	        default:
+	            throw new Exception("Unsupported field type: " + type);
+	    }
+	}
+
+	private WebElement findElementWithWait(By locator, int waitInSeconds) {
+	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(waitInSeconds));
+	    return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+	}
+
+
+	public void waitAndClick(WebElement element) {
+	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(DEFAULT_WAIT_SECONDS));
+	    SFClick(wait.until(ExpectedConditions.elementToBeClickable(element)));
+	}
+
+	private void clearAndSendKeys(WebElement element, String value) throws InterruptedException {
+	    element.clear();
+	    Thread.sleep(500);
+	    element.sendKeys(value);
+	}
+
+	// Filling MultiPicklist
+	private void fillMultiPicklist(String label, String targetValue) throws Exception {
+	    WebElement container = getFieldElementByLabel(label);
+	    WebElement availableList = container.findElement(By.xpath(".//ul[@data-source-list]"));
+	    WebElement moveButton = container.findElement(By.xpath(".//button[@title='Move to Chosen']"));
+	    String values = targetValue.replaceAll("[\\[\\]]", ""); // Remove brackets
+	    String[] items = values.split(",\\s*");
+
+	    for (String item : items) {
+	        WebElement option = findOptionInListWithScroll(availableList, item);
+	        scrollIntoView(option);
+	        option.click();
+	        Thread.sleep(5000);
+	    }
+	    waitAndClick(moveButton);
+	    Thread.sleep(1000);
+	}
+
+	// Clearing MultiPicklist
+	private void clearMultiPicklist(String label) throws Exception {
+	    WebElement container = getFieldElementByLabel(label);
+	    WebElement selectedList = container.findElement(By.xpath(".//ul[@data-selected-list]"));
+	    WebElement moveButton = container.findElement(By.xpath(".//button[@title='Move to Available']"));
+
+	    List<WebElement> options = selectedList.findElements(By.xpath(".//div[@role='option']"));
+	    for (WebElement option : options) {
+	        scrollIntoView(option);
+	        option.click();
+	        Thread.sleep(500);
+	    }
+	    if (!options.isEmpty()) {
+	        moveButton.click();
+	        Thread.sleep(1000);
+	    }
+	}
+
+	// Scroll and find option in list
+	private WebElement findOptionInListWithScroll(WebElement listElement, String optionText) throws Exception {
+	    List<WebElement> options = listElement.findElements(By.xpath(".//div[@role='option']"));
+	    for (WebElement option : options) {
+	        if (option.getText().trim().equals(optionText)) {
+	            return option;
+	        }
+	    }
+	    throw new Exception("Option not found in list: " + optionText);
+	}
+	
+	public void scrollList(WebElement listContainer) {
+	    JavascriptExecutor js = (JavascriptExecutor) driver;
+	    js.executeScript("arguments[0].scrollTop = arguments[0].scrollTop + 100;", listContainer);
+	}
+	
+	public void scrollIntoView(WebElement element) {
+	    JavascriptExecutor js = (JavascriptExecutor) driver;
+	    js.executeScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element);
 	}
 
 	// ============================================================
 	// --- Assertions Section ---
 	// ============================================================
-	public void assertFormValue(String label, String expectedValue) throws Exception {
+	public void assertFormValueByLabel(String label, String expectedValue) throws Exception {
 		WebElement we = getFieldElementByLabel(label);
-		Assert.assertEquals(we.getText(), expectedValue, "Field '" + label + "' value mismatch.");
+		String actualValue = "input".equalsIgnoreCase(we.getTagName())? we.getAttribute("value"):we.getText();
+		Assert.assertEquals(actualValue, expectedValue, "Field '" + label + "' value mismatch.");
+	}
+	
+	public void assertFormErrorValueByLabel(String label, String expectedValue) throws Exception {
+		WebElement we = getFieldElementErrorByLabel(label);
+		String actualValue = "input".equalsIgnoreCase(we.getTagName())? we.getAttribute("value"):we.getText();
+		Assert.assertTrue(actualValue.contains(expectedValue), "Field '" + label + "' value mismatch.");
 	}
 
 	public void assertFormValueSnags(String label, String expectedValue) throws Exception {
