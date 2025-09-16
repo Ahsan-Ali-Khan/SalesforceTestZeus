@@ -195,7 +195,7 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	        String sPath = new java.io.File(".").getCanonicalPath();
 	        File jsonFile = new File(sPath + File.separator + "src" + File.separator + "main" + File.separator
 	                + "resources" + File.separator + "environmentConfig.json");
-
+	        environmentName = envName;
 	        appUrl = JsonPath.read(jsonFile, "$.environments." + envName + ".appUrl");
 	        apiUrl = JsonPath.read(jsonFile, "$.environments." + envName + ".apiUrl");
 	        grantType = JsonPath.read(jsonFile, "$.environments." + envName + ".grantType");

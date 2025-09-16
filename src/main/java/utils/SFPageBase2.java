@@ -319,6 +319,9 @@ public class SFPageBase2 extends PageBase {
 	public WebElement getFieldElementByLabel(String label) throws Exception {
 		String type = labelandtype.get(label);
 		String xpath;
+		if (type == null) {
+			System.out.println(labelandtype);
+		}
 		switch (type) {
 		case "TextArea":
 			xpath = String.format("//textarea[@id=string(//label[text()='%s']/@for)]", label);
@@ -482,7 +485,9 @@ public class SFPageBase2 extends PageBase {
 				+ "']//following-sibling::div[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel
 				+ "']//following-sibling::div[1]//div[contains(@class,'recordTypeName')]/span | //div[contains(@class,'active')]//div[normalize-space()='"
-				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-address"));
+				+ fieldLabel
+				+ "']//following-sibling::div[1]//lightning-formatted-address | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-url"));
 		String actualValue = we.getText();
 		Assert.assertEquals(actualValue, expectedValue, "Field '" + fieldLabel + "' value mismatch.");
 	}

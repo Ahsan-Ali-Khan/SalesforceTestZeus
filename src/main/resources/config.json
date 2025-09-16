@@ -1,22 +1,32 @@
 {
-	"environments": 
-	{
-		"Salesforce_Lightening": 
-		{
-
-
-			"UAT": 
-			{
-				"userId": "yourSalesforceUserID",
-				"homePage": "https://testzeus2-dev-ed.my.salesforce.com",
-				"passwd": "YourPassword",
-				"SFAPICLIENTID_UAT": "YourClientIDfortheconnectedapp_foraccessingtheAPIs",
-				"SFAPICLIENTSECRET_UAT": "YourClientSecret",
-				"apitoken": "YourApiToken"
-
-			}
-
+	"environments": {
+		"NewQA": {
+			"appUrl": "https://test.salesforce.com",
+			"apiUrl": "https://test.salesforce.com",
+			"clientId": "",
+			"clientSecret": "",
+			"grantType": "password",
+			"roles": [
+				{
+					"role": "SystemAdmin",
+					"username": "",
+					"password": ""
+				}
+			]
+		},
+		"P2QA": {
+			"appUrl": "https://effectv--p2qa.sandbox.my.salesforce.com",
+			"apiUrl": "https://effectv--p2qa.sandbox.my.salesforce.com",
+			"clientId": "",
+			"clientSecret": "",
+			"grantType": "client_credentials",
+			"roles": [
+				{
+					"role": "",
+					"username": "",
+					"password": ""
+				}
+			]
 		}
-
 	}
 }

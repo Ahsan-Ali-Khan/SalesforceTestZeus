@@ -3,6 +3,7 @@ package pageobjects;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import base.BaseTest;
 
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.NoAlertPresentException;
@@ -39,8 +40,8 @@ public class LightningLoginPage extends utils.SFPageBase {
         PageFactory.initElements(webDriver, this); // use the parameter instead of raw driver
     }
     
-    public void loginWithRole(String envName, String roleName) throws InterruptedException {
-        Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(envName, roleName);
+    public void loginWithRole(String roleName) throws InterruptedException {
+        Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(BaseTest.environmentName, roleName);
         login(creds.get("username"), creds.get("password"));
     }
 

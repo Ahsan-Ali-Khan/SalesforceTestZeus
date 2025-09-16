@@ -4,10 +4,14 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
@@ -24,6 +28,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+
+import base.BaseTest;
 
 public class HTTPClientWrapper {
 	/*
@@ -182,6 +188,84 @@ public class HTTPClientWrapper {
 	public static String getLoginInstanceUrl() {
 	    return loginInstanceUrl;
 	}
+	
+	public static String getRecordTypeId(String objectName, String developerName) {
+	    try {
+	        String soql = String.format(
+	            "SELECT Id FROM RecordType WHERE SobjectType='%s' AND DeveloperName='%s' LIMIT 1",
+	            objectName, developerName
+	        );
+
+	        String url = baseUri + "/query/?q=" + URLEncoder.encode(soql, StandardCharsets.UTF_8);
+	        HttpGet httpGet = new HttpGet(url);
+	        httpGet.addHeader(oauthHeader);
+	        httpGet.addHeader(prettyPrintHeader);
+
+	        HttpResponse response = HttpClientBuilder.create().build().execute(httpGet);
+	        String responseBody = EntityUtils.toString(response.getEntity());
+
+	        JSONObject json = new JSONObject(responseBody);
+	        JSONArray records = json.getJSONArray("records");
+
+	        if (records.isEmpty()) {
+	            throw new RuntimeException("RecordType not found for " + objectName + ":" + developerName);
+	        }
+
+	        return records.getJSONObject(0).getString("Id");
+	    } catch (Exception e) {
+	        throw new RuntimeException("Error fetching RecordTypeId for " + objectName + ":" + developerName, e);
+	    }
+	}
+	
+	
+	public static String getUserIdByRole(String roleName) {
+	    String envName = BaseTest.environmentName;
+	    try {
+	        // 1. Get Username for the role from config
+	        Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(envName, roleName);
+	        String roleUsername = creds.get("username");
+	        if (roleUsername == null) {
+	            throw new RuntimeException("❌ No username found for role: " + roleName);
+	        }
+
+	        // 2. Ensure login is already done (SFLogin_API must have been called before)
+	        if (oauthHeader == null || baseUri == null) {
+	            throw new IllegalStateException("❌ Salesforce is not logged in. Call SFLogin_API() first.");
+	        }
+
+	        // 3. Build SOQL query
+	        String soql = "SELECT Id FROM User WHERE Username = '" + roleUsername + "' LIMIT 1";
+	        String queryUrl = baseUri + "/query/?q=" + URLEncoder.encode(soql, "UTF-8");
+
+	        HttpClient httpClient = HttpClientBuilder.create().build();
+	        HttpGet httpGet = new HttpGet(queryUrl);
+	        httpGet.addHeader(oauthHeader);
+	        httpGet.addHeader(prettyPrintHeader);
+
+	        HttpResponse queryResponse = httpClient.execute(httpGet);
+	        int queryStatus = queryResponse.getStatusLine().getStatusCode();
+
+	        if (queryStatus != 200) {
+	            String body = EntityUtils.toString(queryResponse.getEntity());
+	            throw new RuntimeException("❌ Failed to query User for role=" + roleName
+	                    + " (" + queryStatus + "): " + body);
+	        }
+
+	        JSONObject queryJson = new JSONObject(EntityUtils.toString(queryResponse.getEntity()));
+	        JSONArray records = queryJson.getJSONArray("records");
+
+	        if (records.length() == 0) {
+	            throw new RuntimeException("❌ No user found with username: " + roleUsername);
+	        }
+
+	        // 4. Return the User Id
+	        return records.getJSONObject(0).getString("Id");
+
+	    } catch (Exception e) {
+	        throw new RuntimeException("❌ Error in getUserIdByRole for env=" + envName 
+	                + ", role=" + roleName, e);
+	    }
+	}
 
 
 	public static JSONObject runGetRequest(String uri) {
@@ -260,6 +344,7 @@ public class HTTPClientWrapper {
 				System.out.println("Updated the sObject successfully.");
 			} else {
 				System.out.println("sObject update NOT successfully. Status code is " + statusCode);
+				
 			}
 		} catch (JSONException e) {
 			System.out.println("Issue creating JSON or processing results");
@@ -303,6 +388,9 @@ public class HTTPClientWrapper {
 
 			} else {
 				System.out.println("Insertion unsuccessful. Status code returned is " + statusCode);
+				String response_string = EntityUtils.toString(response.getEntity());
+				System.out.println(response_string);
+				
 			}
 		} catch (JSONException e) {
 			System.out.println("Issue creating JSON or processing results");
@@ -396,35 +484,41 @@ public class HTTPClientWrapper {
 	// ------------------------------
     // 🔹 Label-driven CREATE
     // ------------------------------
-    public JSONObject createByLabels(String objectName, Map<String, Object> labelValueMap) throws Exception {
-    	Map<String, String> labelToApi = getLabelToApiMap(objectName);
-    	
-        JSONObject body = new JSONObject();
-        for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
-            if (!labelToApi.containsKey(entry.getKey())) {
-            	System.out.println("Available labels: " + labelToApi.keySet());
-                throw new IllegalArgumentException("Invalid field label: " + entry.getKey());
-            }
-            body.put(labelToApi.get(entry.getKey()), entry.getValue());
-        }
+	public JSONObject createByLabels(String objectName, Map<String, Object> labelValueMap) throws Exception {
+	    Map<String, String> labelToApi = getLabelToApiMap(objectName);
+	    JSONObject body = new JSONObject();
 
-        String path = "/sobjects/" + objectName;
-        return create_sObject(path, body); // assumes you already have post() implemented
-    }
+	    List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
+
+	    for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
+	        String inputKey = entry.getKey();
+	        String apiName = resolveApiName(inputKey, labelToApi, suffixes);
+
+	        body.put(apiName, entry.getValue());
+	    }
+
+	    String path = "/sobjects/" + objectName;
+	    return create_sObject(path, body);
+	}
+
+	
 
     // ------------------------------
     // 🔹 Label-driven UPDATE
     // ------------------------------
     public void updateByLabels(String objectName, String recordId, Map<String, Object> labelValueMap) throws Exception {
     	Map<String, String> labelToApi = getLabelToApiMap(objectName);
+    	
+
+	    List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
 
         JSONObject body = new JSONObject();
         for (Map.Entry<String, Object> entry : labelValueMap.entrySet()) {
-            if (!labelToApi.containsKey(entry.getKey())) {
-                throw new IllegalArgumentException("Invalid field label: " + entry.getKey());
-            }
-            body.put(labelToApi.get(entry.getKey()), entry.getValue());
-        }
+	        String inputKey = entry.getKey();
+	        String apiName = resolveApiName(inputKey, labelToApi, suffixes);
+
+	        body.put(apiName, entry.getValue());
+	    }
 
         String path = "/sobjects/" + objectName + "/" + recordId;
         update_sObjectDetails(path, body);
@@ -492,46 +586,95 @@ public class HTTPClientWrapper {
     // 🔹 Combined Label-to-API mapping
     // ------------------------------
     public Map<String, String> getLabelToApiMap(String objectName) throws Exception {
-        // 1️⃣ Return cached mapping if already available
-        if (describeCache.containsKey(objectName)) {
-            return describeCache.get(objectName);
-        }
-
-        Map<String, String> labelToApi = new HashMap<>();
-
-        // 2️⃣ Try UI-API first for better label mapping
-        try {
-            String uiApiPath = "/ui-api/object-info/" + objectName; // relative to baseUri
-            JSONObject uiApiResponse = runGetRequest(uiApiPath);
-
-            JSONObject fields = uiApiResponse.getJSONObject("fields");
-
-            for (String apiName : fields.keySet()) {
-                JSONObject field = fields.getJSONObject(apiName);
-                String label = field.getString("label");
-                labelToApi.put(label, apiName);
+        // 1️⃣ Check cache first
+        return describeCache.computeIfAbsent(objectName, key -> {
+            try {
+                // 2️⃣ Try UI API first
+                String uiApiPath = "/ui-api/object-info/" + key;
+                JSONObject uiApiResponse = runGetRequest(uiApiPath);
+                JSONObject fields = uiApiResponse.getJSONObject("fields");
+                return buildFieldMap(fields, true);
+            } catch (Exception uiEx) {
+                // 3️⃣ On failure → fallback to sObject describe
+                try {
+                    String describePath = "/sobjects/" + key + "/describe";
+                    JSONObject describeResponse = runGetRequest(describePath);
+                    JSONArray fieldsArray = describeResponse.getJSONArray("fields");
+                    return buildFieldMap(fieldsArray, false);
+                } catch (Exception descEx) {
+                    throw new RuntimeException("Failed to fetch field map for: " + key, descEx);
+                }
             }
+        });
+    }
+    
+    /**
+	 * Resolves the API name from the inputKey by attempting transformations.
+	 * It tries:
+	 * 1. Exact match
+	 * 2. Replacing spaces with underscores and matching
+	 * 3. Adding suffixes and matching
+	 */
+	private String resolveApiName(String inputKey, Map<String, String> labelToApi, List<String> suffixes) {
+	    // 1. Exact match
+	    if (labelToApi.containsKey(inputKey)) {
+	    	if ("CAM ID".equalsIgnoreCase(inputKey)) {
+        	System.out.println(inputKey + "" + labelToApi);
+        	
+	    	}
+	        return labelToApi.get(inputKey);
+	    }
 
-            System.out.println("UI-API label mapping loaded for: " + objectName);
-        } catch (Exception e) {
-            System.out.println("UI-API fetch failed, falling back to sObject describe: " + e.getMessage());
+	    // 2. Replace spaces with underscores
+	    String underscored = inputKey.replace(" ", "_");
+//	    if (labelToApi.containsKey(underscored)) {
+//	        return labelToApi.get(underscored);
+//	    }
 
-            // 3️⃣ Fallback: sObject describe
-            String describePath = "/sobjects/" + objectName + "/describe"; // relative to baseUri
-            JSONObject describeResponse = runGetRequest(describePath);
+	    // 3. Try adding suffixes
+	    for (String suffix : suffixes) {
+	        String withSuffix = underscored + suffix;
+	        if (labelToApi.containsKey(withSuffix)) {
 
-            JSONArray fieldsArray = describeResponse.getJSONArray("fields");
+	        	System.out.println(" Found with >>" + withSuffix);
+	            return labelToApi.get(withSuffix);
+	        }
+	    }
+
+	    
+	    throw new IllegalArgumentException("Invalid field label: '" + inputKey +
+	            "'. Allowed fields (sample): " + labelToApi.keySet());
+	}
+
+    /**
+     * Builds a mapping of Label → API name and API → API name.
+     * Handles both UI-API (JSONObject fields) and sObject describe (JSONArray fields).
+     */
+    private Map<String, String> buildFieldMap(Object fields, boolean fromUiApi) {
+        Map<String, String> map = new HashMap<>();
+
+        if (fromUiApi) {
+            JSONObject fieldsObj = (JSONObject) fields;
+            for (String apiName : fieldsObj.keySet()) {
+                JSONObject field = fieldsObj.getJSONObject(apiName);
+                putFieldMapping(map, field.getString("label"), apiName);
+            }
+        } else {
+            JSONArray fieldsArray = (JSONArray) fields;
             for (int i = 0; i < fieldsArray.length(); i++) {
                 JSONObject field = fieldsArray.getJSONObject(i);
-                labelToApi.put(field.getString("label"), field.getString("name"));
+                putFieldMapping(map, field.getString("label"), field.getString("name"));
             }
-
-            System.out.println("sObject Describe label mapping loaded for: " + objectName);
         }
+        return map;
+    }
 
-        // 4️⃣ Cache for future use
-        describeCache.put(objectName, labelToApi);
-        return labelToApi;
+    /**
+     * Adds both label → apiName and apiName → apiName mapping (no duplication).
+     */
+    private void putFieldMapping(Map<String, String> map, String label, String apiName) {
+        map.putIfAbsent(label, apiName);
+        map.putIfAbsent(apiName, apiName);
     }
     
     
