@@ -13,6 +13,12 @@ public class ObjectListPage extends utils.SFPageBase {
 	@FindBy(xpath = "//button[@name='SaveEdit']")
 	private WebElement savebutton;
 	
+	@FindBy(xpath = "//button[normalize-space()='Next']")
+	private WebElement nextButton;
+	
+	@FindBy(xpath = "//button[normalize-space()='Finish']")
+	private WebElement finishButton;
+	
 	@FindBy(xpath = "//div[text()='Advertiser Type']/following-sibling::div//button[@title='Move to Chosen']")
 	private WebElement moveSelectiontoChoosen;
 	

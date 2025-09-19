@@ -14,7 +14,7 @@ public class ObjectPrefixCache {
     private static Map<String, String> loadPrefixMap() {
         try {
             String path = "/sobjects";
-            JSONObject response = HTTPClientWrapper.runGetRequest(path);
+            JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest(path);
             JSONArray sobjects = response.getJSONArray("sobjects");
 
             Map<String, String> map = new ConcurrentHashMap<>();

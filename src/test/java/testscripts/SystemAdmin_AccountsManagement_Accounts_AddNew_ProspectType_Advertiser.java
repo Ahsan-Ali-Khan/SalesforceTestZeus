@@ -115,7 +115,7 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			lightningloginpage.loginWithRole("SystemAdmin");
 			lightningloginpage.applauncher("Account");
 
-			String recordID = objectlistpage.getRecordIdFromUiLabel_Optimized("Account", "Account Name", accountName);
+			String recordID = objectlistpage.getRecordIdByUiLabelAndValue("Account", "Account Name", accountName);
 			objectlistpage.NavigateToRecord("Account", recordID);
 			objectlistpage.uiApiParser(recordID);
 
@@ -162,7 +162,7 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			client.deleteRecord("Account", accountId);
 			System.out.println("\nDeleted Account: " + accountId);
 
-			JSONObject deletedCheck = HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
+			JSONObject deletedCheck = (JSONObject) HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
 			if (deletedCheck == null) {
 				System.out.println("Verified: Account successfully deleted.");
 			} else {

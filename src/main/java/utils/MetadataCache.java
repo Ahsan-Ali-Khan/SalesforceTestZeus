@@ -41,7 +41,7 @@ public class MetadataCache {
          ConcurrentHashMap<String, FieldInfo> fieldsMap = new ConcurrentHashMap<>();
          try {
              String path = "/ui-api/object-info/" + objectName;
-             JSONObject response = HTTPClientWrapper.runGetRequest(path);
+             JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest(path);
              JSONObject fields = response.getJSONObject("fields");
 
              for (String apiName : fields.keySet()) {
@@ -49,12 +49,13 @@ public class MetadataCache {
                  String label = field.getString("label");
                  String dataType = field.getString("dataType");
                  fieldsMap.put(label, new FieldInfo(apiName, dataType));
+                 fieldsMap.put(objectName + " " + label, new FieldInfo(apiName, dataType));
                  fieldsMap.put(apiName, new FieldInfo(apiName, dataType));
              }
          } catch (Exception e) {
              // Fallback
              String path = "/sobjects/" + objectName + "/describe";
-             JSONObject response = HTTPClientWrapper.runGetRequest(path);
+             JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest(path);
              JSONArray fields = response.getJSONArray("fields");
 
              for (int i = 0; i < fields.length(); i++) {
@@ -63,6 +64,7 @@ public class MetadataCache {
                  String apiName = field.getString("name");
                  String dataType = field.getString("type");
                  fieldsMap.put(label, new FieldInfo(apiName, dataType));
+                 fieldsMap.put(objectName +" "+ label, new FieldInfo(apiName, dataType));
                  fieldsMap.put(apiName, new FieldInfo(apiName, dataType));
              }
          }

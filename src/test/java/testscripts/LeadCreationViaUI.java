@@ -42,7 +42,7 @@ public class LeadCreationViaUI extends BaseTest {
 //
 //		objectlistpage.clickSave();
 		
-		String recordId = objectlistpage.getRecordIdFromUiLabel_Optimized("Account", "Account Name", "webo0409");
+		String recordId = objectlistpage.getRecordIdByUiLabelAndValue("Account", "Account Name", "webo0409");
 
 		// navigate to record (builds lightning URL and opens it)
 		objectlistpage.NavigateToRecord("Account", recordId);

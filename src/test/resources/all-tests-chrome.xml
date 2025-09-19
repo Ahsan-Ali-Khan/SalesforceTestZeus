@@ -5,8 +5,9 @@
     <test name="smoke_test" preserve-order="true">
         <classes>
            <!-- <class name="testscripts.LeadCreationViaUI" /> -->
-           <class name="testscripts.SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Advertiser" />
-            <!-- <class name="testscripts.AccountLabelDrivenAPITest" /> -->
+           <!-- <class name="testscripts.SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Advertiser" /> -->
+          <class name="testscripts.AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_ClosedWon" />
+            <!-- <class name="testscripts.SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_CreateIndividual" /> --> 
            
         </classes>
     </test>

@@ -61,7 +61,7 @@ public class AccountLabelDrivenAPITest extends BaseTest {
         // -----------------------------
         // 5️⃣ Verify deletion
         // -----------------------------
-        JSONObject deletedCheck = HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
+        JSONObject deletedCheck = (JSONObject) HTTPClientWrapper.runGetRequest("/sobjects/Account/" + accountId);
         if (deletedCheck == null) {
             System.out.println("Verified: Account successfully deleted.");
         } else {

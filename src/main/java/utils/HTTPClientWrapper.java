@@ -48,6 +48,7 @@ public class HTTPClientWrapper {
 	private static Header oauthHeader;
 	private static Header prettyPrintHeader = new BasicHeader("X-PrettyPrint", "1");
     private static final Map<String, Map<String, String>> describeCache = new HashMap<>();
+    private static final Map<String, Map<String, String>> quickActionCache = new HashMap<>();
 	private static HttpPost httpPost;
 	private static String loginInstanceUrl;
 	
@@ -269,47 +270,47 @@ public class HTTPClientWrapper {
 	}
 
 
-	public static JSONObject runGetRequest(String uri) {
-		System.out.println("\n_______________ sObject Get Request _______________");
+	public static Object runGetRequest(String uri) {
+	    System.out.println("\n_______________ sObject Get Request _______________");
 
-		try {
+	    try {
+	        HttpClient httpClient = HttpClientBuilder.create().build();
+	        System.out.println("GET URI is " + baseUri + uri);
 
-			// Set up the HTTP objects needed to make the request.
-			HttpClient httpClient = HttpClientBuilder.create().build();
+	        HttpGet httpGet = new HttpGet(baseUri + uri);
+	        httpGet.addHeader(oauthHeader);
+	        httpGet.addHeader(prettyPrintHeader);
 
-			System.out.println("GET URI is " + baseUri + uri);
+	        HttpResponse response = httpClient.execute(httpGet);
+	        int statusCode = response.getStatusLine().getStatusCode();
 
-			HttpGet httpGet = new HttpGet(baseUri + uri);
-			httpGet.addHeader(oauthHeader);
-			httpGet.addHeader(prettyPrintHeader);
+	        if (statusCode == 200) {
+	            String responseString = EntityUtils.toString(response.getEntity()).trim();
 
-			// Make the request.
-			HttpResponse response = httpClient.execute(httpGet);
+	            try {
+	                if (responseString.startsWith("{")) {
+	                    return new JSONObject(responseString);
+	                } else if (responseString.startsWith("[")) {
+	                    return new JSONArray(responseString);
+	                } else {
+	                    System.out.println("Unexpected response format: " + responseString);
+	                    return null;
+	                }
+	            } catch (JSONException je) {
+	                System.out.println("Failed to parse JSON: " + responseString);
+	                je.printStackTrace();
+	            }
 
-			// Process the result
-			int statusCode = response.getStatusLine().getStatusCode();
-			if (statusCode == 200) {
-				String response_string = EntityUtils.toString(response.getEntity());
-				try {
-					JSONObject json = new JSONObject(response_string);
+	        } else {
+	            System.out.println("Query was unsuccessful. Status code returned is " + statusCode);
+	            System.out.println("An error has occurred. Http status: " + response.getStatusLine().getStatusCode());
+	            System.out.println(getBody(response.getEntity().getContent()));
+	        }
+	    } catch (IOException | NullPointerException ioe) {
+	        ioe.printStackTrace();
+	    }
 
-					return json;
-
-				} catch (JSONException je) {
-					je.printStackTrace();
-				}
-			} else {
-				System.out.println("Query was unsuccessful. Status code returned is " + statusCode);
-				System.out.println("An error has occured. Http status: " + response.getStatusLine().getStatusCode());
-				System.out.println(getBody(response.getEntity().getContent()));
-			}
-		} catch (IOException ioe) {
-			ioe.printStackTrace();
-		} catch (NullPointerException npe) {
-			npe.printStackTrace();
-		}
-		return null;
-
+	    return null;
 	}
 
 	public static void update_sObjectDetails(String uri, JSONObject json) {
@@ -540,7 +541,7 @@ public class HTTPClientWrapper {
         String query = String.join(",", apiFields);
         String path = "/sobjects/" + objectName + "/" + recordId + "?fields=" + query;
 
-        return runGetRequest(path); // assumes you already have get() implemented
+        return (JSONObject) runGetRequest(path); // assumes you already have get() implemented
     }
 
     // ------------------------------
@@ -571,7 +572,7 @@ public class HTTPClientWrapper {
         }
 
         String path = "/query?q=" + query;
-        return runGetRequest(path);
+        return (JSONObject) runGetRequest(path);
     }
 
     // ------------------------------
@@ -590,14 +591,14 @@ public class HTTPClientWrapper {
             try {
                 // 2️⃣ Try UI API first
                 String uiApiPath = "/ui-api/object-info/" + key;
-                JSONObject uiApiResponse = runGetRequest(uiApiPath);
+                JSONObject uiApiResponse = (JSONObject) runGetRequest(uiApiPath);
                 JSONObject fields = uiApiResponse.getJSONObject("fields");
                 return buildFieldMap(fields, true);
             } catch (Exception uiEx) {
                 // 3️⃣ On failure → fallback to sObject describe
                 try {
                     String describePath = "/sobjects/" + key + "/describe";
-                    JSONObject describeResponse = runGetRequest(describePath);
+                    JSONObject describeResponse = (JSONObject) runGetRequest(describePath);
                     JSONArray fieldsArray = describeResponse.getJSONArray("fields");
                     return buildFieldMap(fieldsArray, false);
                 } catch (Exception descEx) {
@@ -627,6 +628,33 @@ public class HTTPClientWrapper {
             if (fields.containsKey(withSuffix)) {
                 System.out.println("Found with suffix >> " + withSuffix);
                 return fields.get(withSuffix).apiName;
+            }
+        }
+
+        throw new IllegalArgumentException("Invalid field label: '" + inputLabel +
+                "'. Allowed fields (sample): " + fields.keySet());
+    }
+    
+    private String resolveDataType(String inputLabel, Map<String, MetadataCache.FieldInfo> fields) {
+        List<String> suffixes = Arrays.asList("__c", "__r", "__kav"); // Extend as needed
+
+        // 1. Exact match
+        if (fields.containsKey(inputLabel)) {
+            return fields.get(inputLabel).dataType;
+        }
+
+        // 2. Replace spaces with underscores
+        String underscored = inputLabel.replace(" ", "_");
+        if (fields.containsKey(underscored)) {
+            return fields.get(underscored).dataType;
+        }
+
+        // 3. Try appending suffixes
+        for (String suffix : suffixes) {
+            String withSuffix = underscored + suffix;
+            if (fields.containsKey(withSuffix)) {
+                System.out.println("Found with suffix >> " + withSuffix);
+                return fields.get(withSuffix).dataType;
             }
         }
 
@@ -664,6 +692,82 @@ public class HTTPClientWrapper {
         map.putIfAbsent(label, apiName);
         map.putIfAbsent(apiName, apiName);
     }
+
+    /**
+     * Get Quick Actions for an object and cache them.
+     * Returns a mapping of Label → API Name (prefixed with object).
+     * Example: "New Opportunity" → "Account.New_Opportunity"
+     */
+    public static Map<String, String> getQuickActions(String objectName) {
+        return quickActionCache.computeIfAbsent(objectName, key -> {
+            try {
+                JSONArray quickActions = (JSONArray) runGetRequest("/sobjects/" + key + "/quickActions");
+
+                Map<String, String> map = new HashMap<>();
+                for (int i = 0; i < quickActions.length(); i++) {
+                    JSONObject action = quickActions.getJSONObject(i);
+                    String apiName = action.getString("name");      // e.g. New_Opportunity
+                    String label = action.getString("label");    // e.g. New Opportunity
+
+                    // Add mappings
+                    map.putIfAbsent(label, apiName);
+                    map.putIfAbsent(apiName, apiName);
+                }
+                return map;
+            } catch (Exception e) {
+                throw new RuntimeException("❌ Failed to fetch quick actions for: " + key, e);
+            }
+        });
+    }
+
+    public static String getUserNameByRole(String roleName) {
+	    String envName = BaseTest.environmentName;
+	    try {
+	        // 1. Get Username for the role from config
+	        Map<String, String> creds = EnvironmentConfigDto.getRoleCredentials(envName, roleName);
+	        String roleUsername = creds.get("username");
+	        if (roleUsername == null) {
+	            throw new RuntimeException("❌ No username found for role: " + roleName);
+	        }
+
+	        // 2. Ensure login is already done (SFLogin_API must have been called before)
+	        if (oauthHeader == null || baseUri == null) {
+	            throw new IllegalStateException("❌ Salesforce is not logged in. Call SFLogin_API() first.");
+	        }
+
+	        // 3. Build SOQL query
+	        String soql = "SELECT Name FROM User WHERE Username = '" + roleUsername + "' LIMIT 1";
+	        String queryUrl = baseUri + "/query/?q=" + URLEncoder.encode(soql, "UTF-8");
+
+	        HttpClient httpClient = HttpClientBuilder.create().build();
+	        HttpGet httpGet = new HttpGet(queryUrl);
+	        httpGet.addHeader(oauthHeader);
+	        httpGet.addHeader(prettyPrintHeader);
+
+	        HttpResponse queryResponse = httpClient.execute(httpGet);
+	        int queryStatus = queryResponse.getStatusLine().getStatusCode();
+
+	        if (queryStatus != 200) {
+	            String body = EntityUtils.toString(queryResponse.getEntity());
+	            throw new RuntimeException("❌ Failed to query User for role=" + roleName
+	                    + " (" + queryStatus + "): " + body);
+	        }
+
+	        JSONObject queryJson = new JSONObject(EntityUtils.toString(queryResponse.getEntity()));
+	        JSONArray records = queryJson.getJSONArray("records");
+
+	        if (records.length() == 0) {
+	            throw new RuntimeException("❌ No user found with username: " + roleUsername);
+	        }
+
+	        // 4. Return the User Id
+	        return records.getJSONObject(0).getString("Name");
+
+	    } catch (Exception e) {
+	        throw new RuntimeException("❌ Error in getUserIdByRole for env=" + envName 
+	                + ", role=" + roleName, e);
+	    }
+	}
     
     
 }

@@ -428,11 +428,24 @@ public class PageBase { // This file contains common framework level methods for
 		return currentdatetime;
 	}
 
-	public String getCurrentDateWithCustomFormat(String format) {
-		SimpleDateFormat simpleDateFormat = new SimpleDateFormat(format);
-		String currentdatetime = simpleDateFormat.format(new Date());
-		return currentdatetime;
-	}
+	public String getCurrentDateWithCustomFormat(String format, int days, String timezone) {
+        // Default timezone = EST if not provided
+        if (timezone == null || timezone.trim().isEmpty()) {
+            timezone = "America/New_York"; // EST/EDT safe zone ID
+        }
+
+        // Set formatter with timezone
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(format);
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone(timezone));
+
+        // Offset days
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(timezone));
+        calendar.add(Calendar.DAY_OF_MONTH, days);
+
+        // Format adjusted date
+        String formattedDate = simpleDateFormat.format(calendar.getTime());
+        return formattedDate;
+    }
 
 	public boolean isElementDisplayed(WebElement elmt) {
 		boolean display = false;

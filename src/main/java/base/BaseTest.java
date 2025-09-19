@@ -78,6 +78,19 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	public static String SFAPICLIENTID;
 	public static String SFAPICLIENTSECRET;
 	public static List<?> roles;
+	private static final ThreadLocal<String> THREAD_CURRENT_OBJECT = new ThreadLocal<>();
+
+	public static void setThreadCurrentObject(String objectApiName) {
+	    THREAD_CURRENT_OBJECT.set(objectApiName);
+	}
+
+	public static String getThreadCurrentObject() {
+	    return THREAD_CURRENT_OBJECT.get();
+	}
+
+	public static void clearThreadCurrentObject() {
+	    THREAD_CURRENT_OBJECT.remove();
+	}
 
 	@BeforeSuite(alwaysRun = true)
 	@Parameters({ "browserType" })

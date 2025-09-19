@@ -1,21 +1,23 @@
 package utils;
 
-import java.io.FileWriter;
-import java.io.IOException;
 import java.net.URLEncoder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedCondition;
@@ -24,6 +26,8 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
 
 import com.jayway.jsonpath.JsonPath;
+
+import base.BaseTest;
 
 /**
  * @author Robin
@@ -43,6 +47,11 @@ public class SFPageBase extends PageBase {
 	protected static HashMap<String, String> labelandtype;
 	private String extractedObjectName;
     private static final int DEFAULT_WAIT_SECONDS = 30;
+    private String currentObjectApiName;
+    private static final Pattern LIGHTNING_RECORD_PATTERN = Pattern.compile("/lightning/r/([^/]+)/[A-Za-z0-9]{15,18}(/|$)");
+    private static final Pattern LIGHTNING_OBJECT_PATTERN = Pattern.compile("/lightning/o/([^/]+)/list");
+    private static final Pattern ONE_APP_SOBJECT_PATTERN = Pattern.compile("/sObject/([A-Za-z0-9]{15,18})");
+    private static final Pattern ID_EXTRACT_PATTERN = Pattern.compile("([A-Za-z0-9]{15,18})");
 
 	public SFPageBase(WebDriver driver) {
 		super(driver);
@@ -103,23 +112,27 @@ public class SFPageBase extends PageBase {
 	}
 
 	public void NavigateToRecord(String objectApiName, String recordId) {
-		String url = getRecordUrl(objectApiName, recordId);
-		System.out.println(url);
-		try {
-			driver.get(url);
-			waitForSFPagetoLoad();
-		} catch (Exception e) {
-			System.out.println("Failed to open Lightning URL: " + e.getMessage());
-			try {
-				String base = utils.HTTPClientWrapper.getLoginInstanceUrl().replaceAll("/+$$", "");
-				String fallback = base + "/" + recordId;
-				System.out.println("Attempting fallback URL: " + fallback);
-				driver.get(fallback);
-				waitForSFPagetoLoad();
-			} catch (Exception ex) {
-				throw new RuntimeException("Could not navigate to record: " + recordId, ex);
-			}
-		}
+	    String url = getRecordUrl(objectApiName, recordId);
+	    System.out.println(url);
+	    try {
+	        driver.get(url);
+	        waitForSFPagetoLoad();
+	        // AUTO: set current object after navigation
+	        setCurrentObject(objectApiName); // immediate and correct
+	    } catch (Exception e) {
+	        System.out.println("Failed to open Lightning URL: " + e.getMessage());
+	        try {
+	            String base = utils.HTTPClientWrapper.getLoginInstanceUrl().replaceAll("/+$$", "");
+	            String fallback = base + "/" + recordId;
+	            System.out.println("Attempting fallback URL: " + fallback);
+	            driver.get(fallback);
+	            waitForSFPagetoLoad();
+	            // try to auto-detect from URL or record Id
+	            updateCurrentObjectAuto();
+	        } catch (Exception ex) {
+	            throw new RuntimeException("Could not navigate to record: " + recordId, ex);
+	        }
+	    }
 	}
 
 	public String getURL(String appname) {
@@ -214,7 +227,7 @@ public class SFPageBase extends PageBase {
 
 	public static String getFieldNameFromLabel_SOBJECT_DESCRIBE(String objectApiName, String label) throws Exception {
 		String describeUrl = "/sobjects/" + objectApiName + "/describe";
-		JSONObject describeResponse = HTTPClientWrapper.runGetRequest(describeUrl);
+		JSONObject describeResponse = (JSONObject) HTTPClientWrapper.runGetRequest(describeUrl);
 		if (describeResponse == null || !describeResponse.has("fields")) {
 			throw new RuntimeException("Failed to get describe response for " + objectApiName);
 		}
@@ -253,14 +266,14 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// --- Record ID & SOQL Query Section ---
 	// ============================================================
-	public String getRecordIdFromUiLabel_Optimized(String objectApiName, String uiLabel, String fieldValue)
+	public String getRecordIdByUiLabelAndValue(String objectApiName, String uiLabel, String fieldValue)
 			throws Exception {
 		String fieldName = getFieldNameFromLabel_SOBJECT_DESCRIBE(objectApiName, uiLabel);
 		if (fieldName == null)
 			return null;
 		String soql = String.format("SELECT Id FROM %s WHERE %s = '%s' LIMIT 1", objectApiName, fieldName, fieldValue);
 		String encodedSoql = URLEncoder.encode(soql, "UTF-8");
-		JSONObject response = HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
+		JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
 		if (response != null && response.has("records") && response.getJSONArray("records").length() > 0) {
 			return response.getJSONArray("records").getJSONObject(0).getString("Id");
 		}
@@ -293,7 +306,7 @@ public class SFPageBase extends PageBase {
 			}
 			String soql = "SELECT Id FROM " + objectApiName + " WHERE " + whereClause;
 			String encodedSoql = URLEncoder.encode(soql, "UTF-8");
-			JSONObject response = HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
+			JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
 			if (response != null && response.has("records")) {
 				JSONArray records = response.getJSONArray("records");
 				for (int i = 0; i < records.length(); i++)
@@ -304,19 +317,6 @@ public class SFPageBase extends PageBase {
 		return ids;
 	}
 
-	public String getRecordIdByUiLabel(String objectApiName, String label, String value) throws Exception {
-		String fieldName = getFieldNameFromLabel(label);
-		if (fieldName == null)
-			return null;
-		String soql = String.format("SELECT Id FROM %s WHERE %s = '%s' LIMIT 1", objectApiName, fieldName, value);
-		String encodedSoql = URLEncoder.encode(soql, "UTF-8");
-		JSONObject response = HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
-		if (response != null && response.has("records") && response.getJSONArray("records").length() > 0) {
-			return response.getJSONArray("records").getJSONObject(0).getString("Id");
-		}
-		return null;
-	}
-
 	// ============================================================
 	// --- Web Element Interaction Section ---
 	// ============================================================
@@ -325,29 +325,42 @@ public class SFPageBase extends PageBase {
 		String xpath = String.format("//div[contains(@class,'active')]//button[@title='Edit %s']", fieldLabel);
 		SFClick(driver.findElement(By.xpath(xpath)));
 	}
+	
+	/**
+	 * Resolve a Quick Action button (WebElement) by its label.
+	 * Uses Salesforce Quick Actions API (cached in HTTPClientWrapper).
+	 *
+	 * @param objectApiName - The object (e.g. "Account")
+	 * @param actionLabel   - The label shown in UI (e.g. "New Opportunity")
+	 * @return WebElement for the Quick Action button
+	 */
+	// existing method that accepts object explicitly (keep it)
+	public WebElement getQuickActionElement(String objectApiName, String actionLabel) throws Exception {
+	    Map<String, String> actions = HTTPClientWrapper.getQuickActions(objectApiName);
 
-	public void clickOnGlobalSearchTextbox(String placeholderText) {
-		String xpath = String.format("//button[@aria-label='%s']", placeholderText);
-		SFClick(driver.findElement(By.xpath(xpath)));
+	    if (!actions.containsKey(actionLabel)) {
+	        throw new IllegalArgumentException("❌ Action not found: " + actionLabel +
+	                " for object: " + objectApiName +
+	                ". Available: " + actions.keySet());
+	    }
+
+	    String apiName = actions.get(actionLabel); // e.g. Account.New_Opportunity
+
+	    String xpath = String.format(
+	        "//div[contains(@class,'active')]//runtime_platform_actions-action-renderer[@apiname='%s']//button",
+	        apiName
+	    );
+
+	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+	    return wait.until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
 	}
 
-	public void clickSelectAllDownArrow(String placeholder) {
-		String xpath = String.format(
-				"//input[@data-value='%s']/ancestor::div[contains(@class,'slds-combobox__form-element')]//lightning-icon[@icon-name='utility:down']",
-				placeholder);
-		SFClick(driver.findElement(By.xpath(xpath)));
+	// overload that uses currentObject automatically
+	public WebElement getQuickActionElement(String actionLabel) throws Exception {
+	    String obj = requireCurrentObject();
+	    return getQuickActionElement(obj, actionLabel);
 	}
 
-	public void clickListboxOption(String optionText) {
-		String xpath = String.format("//li[contains(@class,'slds-listbox__item')]//span[@title='%s']", optionText);
-		SFClick(driver.findElement(By.xpath(xpath)));
-	}
-
-	public void selectFirstSuggestedValue() {
-		WebElement firstVisibleSuggestion = driver.findElement(By.xpath(
-				"(//search_dialog-instant-results-list//search_dialog-instant-result-item[.//span[normalize-space()!='']])[1]"));
-		SFClick(firstVisibleSuggestion);
-	}
 
 	// Get field element by label
 	public WebElement getFieldElementByLabel(String label) throws Exception {
@@ -365,25 +378,15 @@ public class SFPageBase extends PageBase {
 	    return findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	}
 
-	public void clickButtonByLabel(String buttonText) {
-		String xpath = String.format("//div[contains(@class,\"active\")]//button[normalize-space(.)='%s']", buttonText);
-		try {
-			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
-			WebElement button = wait.until(ExpectedConditions.elementToBeClickable(By.xpath(xpath)));
-			SFClick(button);
-		} catch (Exception e) {
-			throw new RuntimeException("Could not click button: " + buttonText, e);
-		}
-	}
-
 	// ============================================================
 	// --- Form Handling Section ---
 	// ============================================================
 	// Fill form field by label and value
 	public void formValueFiller(String label, String targetValue) throws Exception {
-	    WebElement field = getFieldElementByLabel(label);
-	    scrollIntoView(field);
-	    String type = labelandtype.get(label);
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+	    WebElement fieldElement = getFieldElementByLabel(label);
+	    scrollIntoView(fieldElement);
+	    String type = fields.get(label).dataType;
 
 	    switch (type) {
 	        case "String":
@@ -396,22 +399,22 @@ public class SFPageBase extends PageBase {
 	        case "Boolean":
 	        case "Email":
 	        case "TextArea":
-	            clearAndSendKeys(field, targetValue);
+	            clearAndSendKeys(fieldElement, targetValue);
 	            break;
 	        case "Picklist":
-	            waitAndClick(field);
-	            field.sendKeys(targetValue);
+	            waitAndClick(fieldElement);
+	            fieldElement.sendKeys(targetValue);
 	            Thread.sleep(2000);
-	            field.sendKeys(Keys.ENTER);
+	            fieldElement.sendKeys(Keys.ENTER);
 	            break;
 	        case "MultiPicklist":
 	            fillMultiPicklist(label, targetValue);
 	            break;
 	        case "Reference":
-	            field.sendKeys(targetValue);
-	            field.sendKeys(Keys.ARROW_DOWN);
+	        	fieldElement.sendKeys(targetValue);
+	        	fieldElement.sendKeys(Keys.ARROW_DOWN);
 	            Thread.sleep(2000);
-	            field.sendKeys(Keys.ENTER);
+	            fieldElement.sendKeys(Keys.ENTER);
 	            break;
 	        default:
 	            throw new Exception("Unsupported field type: " + type);
@@ -420,9 +423,10 @@ public class SFPageBase extends PageBase {
 
 	// Overloaded version with custom wait time
 	public void formValueFiller(String label, String targetValue, int waitInSeconds) throws Exception {
-	    WebElement field = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
-	    scrollIntoView(field);
-	    String type = labelandtype.get(label);
+	    Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+	    WebElement fieldElement = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
+	    scrollIntoView(fieldElement);
+	    String type = fields.get(label).dataType;
 
 	    switch (type) {
 	        case "String":
@@ -435,22 +439,22 @@ public class SFPageBase extends PageBase {
 	        case "Boolean":
 	        case "Email":
 	        case "TextArea":
-	            clearAndSendKeys(field, targetValue);
+	            clearAndSendKeys(fieldElement, targetValue);
 	            break;
 	        case "Picklist":
-	            waitAndClick(field);
-	            field.sendKeys(targetValue);
+	            waitAndClick(fieldElement);
+	            fieldElement.sendKeys(targetValue);
 	            Thread.sleep(2000);
-	            field.sendKeys(Keys.ENTER);
+	            fieldElement.sendKeys(Keys.ENTER);
 	            break;
 	        case "MultiPicklist":
 	            fillMultiPicklist(label, targetValue);
 	            break;
 	        case "Reference":
-	            field.sendKeys(targetValue);
-	            field.sendKeys(Keys.ARROW_DOWN);
+	        	fieldElement.sendKeys(targetValue);
+	        	fieldElement.sendKeys(Keys.ARROW_DOWN);
 	            Thread.sleep(2000);
-	            field.sendKeys(Keys.ENTER);
+	            fieldElement.sendKeys(Keys.ENTER);
 	            break;
 	        default:
 	            throw new Exception("Unsupported field type: " + type);
@@ -459,9 +463,10 @@ public class SFPageBase extends PageBase {
 
 	// Clear input by label
 	public void formValueFillerClearInput(String label) throws Exception {
-	    WebElement field = getFieldElementByLabel(label);
-	    scrollIntoView(field);
-	    String type = labelandtype.get(label);
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+	    WebElement fieldElement = getFieldElementByLabel(label);
+	    scrollIntoView(fieldElement);
+	    String type = fields.get(label).dataType;
 
 	    switch (type) {
 	        case "String":
@@ -475,11 +480,11 @@ public class SFPageBase extends PageBase {
 	        case "Email":
 	        case "TextArea":
 	        case "Reference":
-	            field.clear();
+	        	fieldElement.clear();
 	            break;
 	        case "Picklist":
-	            waitAndClick(field);
-	            field.clear();
+	            waitAndClick(fieldElement);
+	            fieldElement.clear();
 	            break;
 	        case "MultiPicklist":
 	            clearMultiPicklist(label);
@@ -489,12 +494,179 @@ public class SFPageBase extends PageBase {
 	    }
 	}
 	
+	/**
+	 * Clicks on a Quick Action button by its label (e.g. "New Opportunity").
+	 * Resolves the API name via Salesforce Quick Actions API to avoid hardcoding.
+	 */
+	// click wrapper that updates current object automatically after navigation
+		public void clickQuickAction(String objectApiName, String actionLabel) throws Exception {
+		    WebElement btn = getQuickActionElement(objectApiName, actionLabel);
+		    SFClick(btn);
+		    // Quick actions often navigate (to create/edit target). Wait & update.
+		    try {
+		        waitForSFPagetoLoad();
+		    } catch (InterruptedException ignored) { }
+		    updateCurrentObjectAuto();
+		    System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
+		}
+
+		// overload uses currentObject implicitly
+		public void clickQuickAction(String actionLabel) throws Exception {
+		    clickQuickAction(requireCurrentObject(), actionLabel);
+		}
+
+	    // ✅ Click button by text
+	    public void clickButton(String buttonText) {
+	        String xpath = "//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[@role='button' and normalize-space()='" + buttonText + "']";
+	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	        SFClick(button);
+	        updateCurrentObjectAuto();
+	    }
+	    
+	    public void clickTab(String tabName) {
+			String xpath = "//one-app-nav-bar-item-root//a[@title='" 
+					+ tabName + "'] | //div[contains(@class,'active')]//li[@class='slds-tabs_default__item' and @title='"
+					+ tabName + "']";
+	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	        SFClick(button);
+	        updateCurrentObjectAuto();
+	    }
+	
 	// ===============================
 	// Helper Methods
 	// ===============================
 
+	    
+
+	    /**
+	     * Returns a list of all tab labels.
+	     */
+	    public List<String> getAllStageTabs() {
+	        List<WebElement> tabs = driver.findElements(By.cssSelector("a.tabHeader"));
+	        List<String> tabLabels = new ArrayList<>();
+	        for (WebElement tab : tabs) {
+	            tabLabels.add(tab.getText()); // or "data-tab-name"
+	        }
+	        return tabLabels;
+	    }
+	    
+	/**
+	 * Try to extract object API name from current URL or recordId.
+	 * Strategy:
+	 * 1) /lightning/r/<ObjectApiName>/<Id>/...
+	 * 2) /lightning/o/<ObjectApiName>/list
+	 * 3) /sObject/<Id> (one.app legacy)
+	 * 4) If only Id found → call setCurrentObjectFromRecordId
+	 */
+	private String extractObjectFromUrl(String url) {
+	    if (url == null) return null;
+
+	    Matcher m = LIGHTNING_RECORD_PATTERN.matcher(url);
+	    if (m.find()) {
+	        return m.group(1);
+	    }
+
+	    m = LIGHTNING_OBJECT_PATTERN.matcher(url);
+	    if (m.find()) {
+	        return m.group(1);
+	    }
+
+	    // legacy one.app or others that contain sObject/<Id>
+	    m = ONE_APP_SOBJECT_PATTERN.matcher(url);
+	    if (m.find()) {
+	        // we only got ID — let the caller handle retrieving object via recordId
+	        String id = m.group(1);
+	        try {
+	            setCurrentObjectFromRecordId(id);
+	            return this.currentObjectApiName;
+	        } catch (Exception e) {
+	            return null;
+	        }
+	    }
+
+	    return null;
+	}
+
+	/**
+	 * High-level: update currentObjectApiName based on URL / record id fallback.
+	 * Safe to call after navigation.
+	 */
+	public void updateCurrentObjectAuto() {
+	    try {
+	        waitForSFPagetoLoad();
+	        String url = driver.getCurrentUrl();
+	        String obj = extractObjectFromUrl(url);
+	        if (obj != null && !obj.isEmpty()) {
+	            this.currentObjectApiName = obj;
+	            System.out.println("Auto-detected current object from URL: " + obj);
+	            return;
+	        }
+
+	        // fallback: try to extract ID from current URL and use prefix lookup / UI-API
+	        Matcher idMatcher = ID_EXTRACT_PATTERN.matcher(url);
+	        if (idMatcher.find()) {
+	            String id = idMatcher.group(1);
+	            if (id != null) {
+	                setCurrentObjectFromRecordId(id);
+	                if (this.currentObjectApiName != null) {
+	                    System.out.println("Auto-detected current object from recordId fallback: " + this.currentObjectApiName);
+	                    return;
+	                }
+	            }
+	        }
+
+	        // Final fallback: thread-level object (if tests set it)
+	        String threadObj = null;
+	        try {
+	            threadObj = BaseTest.getThreadCurrentObject();
+	        } catch (Throwable ignored) { }
+	        if (threadObj != null && !threadObj.isEmpty()) {
+	            this.currentObjectApiName = threadObj;
+	            System.out.println("Using ThreadLocal currentObject: " + threadObj);
+	            return;
+	        }
+
+	        // nothing found — leave as null
+	        System.out.println("updateCurrentObjectAuto: could not detect object from URL: " + url);
+
+	    } catch (Exception e) {
+	        System.out.println("updateCurrentObjectAuto: failed: " + e.getMessage());
+	    }
+	}
+
+	/**
+	 * Given a recordId, call UI-API fallback (uiApiHitter) to set extractedObjectName,
+	 * then set currentObjectApiName. Uses your existing uiApiHitter() & ObjectPrefixCache fallback.
+	 */
+	public void setCurrentObjectFromRecordId(String recordId) throws Exception {
+	    if (recordId == null || recordId.length() < 3) {
+	        throw new IllegalArgumentException("Invalid recordId: " + recordId);
+	    }
+	    try {
+	        // uiApiHitter will populate extractedObjectName
+	        uiApiHitter(recordId);
+	        if (this.extractedObjectName != null && !this.extractedObjectName.isEmpty()) {
+	            setCurrentObject(this.extractedObjectName);
+	            return;
+	        }
+	    } catch (Exception e) {
+	        // ignore and try prefix-based fallback
+	    }
+
+	    // prefix fallback using ObjectPrefixCache (you already use this elsewhere)
+	    String prefix = recordId.substring(0, 3);
+	    String obj = ObjectPrefixCache.getObjectName(prefix);
+	    if (obj != null && !obj.isEmpty()) {
+	        setCurrentObject(obj);
+	        return;
+	    }
+
+	    throw new RuntimeException("Could not resolve object for recordId: " + recordId);
+	}
+	
 	private String getFieldXPath(String label) throws Exception {
-	    String type = labelandtype.get(label);
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+	    String type = fields.get(label).dataType;
 	    if (type == null) {
 	        throw new Exception("Label not found: " + label);
 	    }
@@ -509,7 +681,7 @@ public class SFPageBase extends PageBase {
 	        case "Date":
 	        case "Boolean":
 	        case "Email":
-	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)]";
+	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'" +label+ "')]/@id)]";
 	        case "TextArea":
 	            return "//div[contains(@class,'active')]//textarea[@id=string(//label[text()='" + label + "']/@for)]";
 	        case "Picklist":
@@ -595,14 +767,100 @@ public class SFPageBase extends PageBase {
 	    JavascriptExecutor js = (JavascriptExecutor) driver;
 	    js.executeScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element);
 	}
+	
+
+	// Scroll each section into view and return it
+	private WebElement scrollToSection(String sectionName) {
+
+	    WebDriverWait localWait = new WebDriverWait(driver, Duration.ofSeconds(10));
+	    String sectionXpath = "//div[contains(@class,'active')]//*[contains(local-name(),'h2') or contains(local-name(),'h3') ]//span[text()='" + sectionName + "']";
+	    WebElement section = localWait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(sectionXpath)));
+
+	    ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", section);
+
+	    // Wait until section is visible on screen
+	    localWait.until(ExpectedConditions.visibilityOf(section));
+
+	    return section;
+	}
+
+	
+	
+	public List<WebElement> scrollEachSection(String sectionsString) {
+	    // Remove brackets [ ] and split by comma
+	    String cleaned = sectionsString.replaceAll("[\\[\\]]", "").trim();
+	    String[] sectionNames = cleaned.split("\\s*,\\s*");
+	    List<WebElement> sectionElements = new ArrayList<>();
+	    for (String sectionName : sectionNames) {
+	    	WebElement section = scrollToSection(sectionName);
+	        sectionElements.add(section);
+	    }
+	    return sectionElements;
+	}
 
 	// ============================================================
 	// --- Assertions Section ---
 	// ============================================================
+	public void assertSectionHeaders(String listOfSections) {
+	    String cleaned =  listOfSections.replaceAll("[\\[\\]]", "").trim();
+	    String[] expectedSectionNames = cleaned.split("\\s*,\\s*");
+	    for (String expectedSectionName : expectedSectionNames) {
+	    	WebElement section = scrollToSection(expectedSectionName);
+	    	String actualSectionName = section.getText();
+	    	Assert.assertEquals(actualSectionName, expectedSectionName);
+	    }
+	}
+	
 	public void assertFormValueByLabel(String label, String expectedValue) throws Exception {
 		WebElement we = getFieldElementByLabel(label);
 		String actualValue = "input".equalsIgnoreCase(we.getTagName())? we.getAttribute("value"):we.getText();
 		Assert.assertEquals(actualValue, expectedValue, "Field '" + label + "' value mismatch.");
+	}
+	
+	public void assertAvailablePicklistOptionsEquals(String label, String targetValue) throws Exception {
+	    WebElement container = getFieldElementByLabel(label);
+	    WebElement availableList = container.findElement(By.xpath(".//ul[@data-source-list]"));
+
+	    // Get all available options
+	    List<WebElement> options = availableList.findElements(By.xpath(".//div[@role='option']"));
+
+	    List<String> actualValues = options.stream()
+	            .map(e -> e.getText().trim())
+	            .collect(Collectors.toList());
+
+	    // Clean target values
+	    String values = targetValue.replaceAll("[\\[\\]]", ""); // Remove brackets if passed
+	    List<String> expectedValues = Arrays.stream(values.split(",\\s*"))
+	            .map(String::trim)
+	            .collect(Collectors.toList());
+
+	    // Assert equality (order-sensitive, use containsAll if not order-dependent)
+	    if (!actualValues.equals(expectedValues)) {
+	        throw new AssertionError("Available list mismatch. Expected: " + expectedValues + ", but got: " + actualValues);
+	    }
+	}
+
+	public void assertChosenPicklistOptionsEquals(String label, String targetValue) throws Exception {
+	    WebElement container = getFieldElementByLabel(label);
+	    WebElement selectedList = container.findElement(By.xpath(".//ul[@data-selected-list]"));
+
+	    // Get all chosen options
+	    List<WebElement> options = selectedList.findElements(By.xpath(".//div[@role='option']"));
+
+	    List<String> actualValues = options.stream()
+	            .map(e -> e.getText().trim())
+	            .collect(Collectors.toList());
+
+	    // Clean target values
+	    String values = targetValue.replaceAll("[\\[\\]]", ""); // Remove brackets if passed
+	    List<String> expectedValues = Arrays.stream(values.split(",\\s*"))
+	            .map(String::trim)
+	            .collect(Collectors.toList());
+
+	    // Assert equality (order-sensitive, use containsAll if not order-dependent)
+	    if (!actualValues.equals(expectedValues)) {
+	        throw new AssertionError("Chosen list mismatch. Expected: " + expectedValues + ", but got: " + actualValues);
+	    }
 	}
 	
 	public void assertFormErrorValueByLabel(String label, String expectedValue) throws Exception {
@@ -627,30 +885,42 @@ public class SFPageBase extends PageBase {
 				"Required field validation failed for object: " + objname);
 	}
 
-	public void assertElementIsVisible(String fieldLabel, int timeoutInSeconds) {
+	public void assertElementVisible(String fieldLabel, int timeoutInSeconds) {
 		try {
 			WebElement element = getFieldElementByLabel(fieldLabel);
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
 			wait.until(ExpectedConditions.visibilityOf(element));
-			Assert.assertTrue(element.isDisplayed(), "Element with label '" + fieldLabel + "' is not visible.");
+			Assert.assertTrue(element.isDisplayed(), "Element with label '" + fieldLabel + "' should be visible.");
 		} catch (Exception e) {
 			Assert.fail("Element with label '" + fieldLabel + "' is not visible: " + e.getMessage());
 		}
 	}
+	
+	public void assertElementNotVisible(String fieldLabel, int timeoutInSeconds) {
+		try {
+			WebElement element = getFieldElementByLabel(fieldLabel);
+			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
+			wait.until(ExpectedConditions.visibilityOf(element));
+			Assert.assertTrue(!element.isDisplayed(), "Element with label '" + fieldLabel + "' should not visible.");
+		} catch (Exception e) {
+			Assert.fail("Element with label '" + fieldLabel + "' is visible or provided wrong label : " + e.getMessage());
+		}
+	}
 
 	public void assertRecordExistsInDB(String objectApiName, String fieldLabel, String fieldValue) throws Exception {
-		String recordId = getRecordIdByUiLabel(objectApiName, fieldLabel, fieldValue);
+		String recordId = getRecordIdByUiLabelAndValue(objectApiName, fieldLabel, fieldValue);
 		Assert.assertNotNull(recordId, "Record with " + fieldLabel + " = '" + fieldValue + "' does not exist in DB.");
 	}
 
 	public void assertFieldLabelAndValue(String fieldLabel, String expectedValue) throws Exception {
-		WebElement we = driver.findElement(By.xpath("//div[normalize-space()='" + fieldLabel
-				+ "']//following-sibling::div[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
-				+ fieldLabel
-				+ "']//following-sibling::div[1]//div[contains(@class,'recordTypeName')]/span | //div[contains(@class,'active')]//div[normalize-space()='"
-				+ fieldLabel
-				+ "']//following-sibling::div[1]//lightning-formatted-address | //div[contains(@class,'active')]//div[normalize-space()='"
-				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-url"));
+		String genericXpathLocator = "(//div[normalize-space()='" 
+				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']//following-sibling::div[1]//div[contains(@class,'recordTypeName')]/span | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-address | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-url | //div[contains(@class,'active')]//p[normalize-space()='"
+				+ fieldLabel + "']/following-sibling::p[1]//records-hoverable-link//a//span | //div[contains(@class,'active')]//p[normalize-space()='"
+				+ fieldLabel + "']/following-sibling::p[1]//lightning-formatted-text)[last()]";
+		WebElement we = driver.findElement(By.xpath(genericXpathLocator));
 		String actualValue = we.getText();
 		Assert.assertEquals(actualValue, expectedValue, "Field '" + fieldLabel + "' value mismatch.");
 	}
@@ -668,13 +938,15 @@ public class SFPageBase extends PageBase {
 		Assert.assertTrue(actualValue.contains(partialValue));
 	}
 
-	public void assertToastMessageAppeared(String expectedMessage) {
-		String xpath = String.format(
-				"//div[@class='slds-notify slds-notify_toast slds-theme_success']//span[contains(@class,'forceActionsText') and text()='%s']",
-				expectedMessage);
+	public void assertToastMessageContains(String expectedMessage) {
+		String xpath = 
+				"//div[contains(@class,'slds-notify--toast')]//span[contains(@class,'forceActionsText') and text()]";
 		try {
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
-			wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(xpath)));
+			WebElement toastMessage = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(xpath)));
+			String actualMessage = toastMessage.getText();
+			Assert.assertTrue(actualMessage.contains(actualMessage), "Toast Message should contains " + expectedMessage + " but found " + actualMessage);
+			hardwait(10);
 		} catch (Exception e) {
 			Assert.fail("Toast message did not appear: " + expectedMessage);
 		}
@@ -690,7 +962,7 @@ public class SFPageBase extends PageBase {
 		String path = String.format("$..[?(@.label == '%s')].picklistValues", fieldLabel);
 		List<List<Object>> allValuesList = JsonPath.read(uiapi_record_json, path);
 		if (allValuesList.isEmpty())
-			Assert.fail("Picklist not found: " + fieldLabel);
+			Assert.fail("Picklist not found: " + fieldLabel);else {
 		boolean valueFound = false;
 		for (Object item : allValuesList.get(0)) {
 			String value = JsonPath.read(item, "$.value");
@@ -699,6 +971,7 @@ public class SFPageBase extends PageBase {
 				break;
 			}
 		}
+		Assert.assertTrue(valueFound, "List of Picklist values for label "+ fieldLabel + ": "+ allValuesList.get(0).toArray() +" should contains " + expectedValue );}
 	}
 	
 	/**
@@ -926,16 +1199,153 @@ public class SFPageBase extends PageBase {
 	 * @return True if the element is found, false otherwise.
 	 */
 	public boolean waitForFieldToAppear(String label, int timeoutInSeconds) {
-		try {
-			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
-			WebElement element = getFieldElementByLabel(label);
-			wait.until(ExpectedConditions.visibilityOf(element));
-			System.out.println("PASS: Field '" + label + "' appeared on the page.");
-			return true;
-		} catch (Exception e) {
-			System.out.println("FAIL: Field '" + label + "' did not appear on the page within " + timeoutInSeconds + " seconds.");
-			return false;
-		}
+	    try {
+	        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
+	        WebElement element = getFieldElementByLabel(label);
+	        wait.until(ExpectedConditions.visibilityOf(element));
+	        System.out.println("PASS: Field '" + label + "' appeared on the page.");
+	        return true;
+	    } catch (Exception e) {
+	        System.out.println("FAIL: Field '" + label + "' did not appear on the page within "
+	                           + timeoutInSeconds + " seconds.");
+	        return false;
+	    }
+	}
+
+	public String extractRecordIdFromUrl(String url) {
+	    try {
+	        // Example: https://.../lightning/r/Opportunity/006VZ00000NXjxBYAT/view
+	        String[] parts = url.split("/");
+	        // RecordId is always second last segment before "view"
+	        return parts[parts.length - 2];
+	    } catch (Exception e) {
+	        throw new IllegalArgumentException("Invalid Salesforce record URL: " + url, e);
+	    }
+	}
+	
+	public boolean waitUntilRecordUnlocked(int maxWaitSeconds) {
+		String recordId = extractRecordIdFromUrl(driver.getCurrentUrl());
+	    int waited = 0;
+	    try {
+	        while (waited < maxWaitSeconds) {
+	            // Build SOQL
+	            String soql = "SELECT RecordId FROM RecordLock WHERE RecordId = '" + recordId + "'";
+	            String encodedSoql = URLEncoder.encode(soql, "UTF-8");
+
+	            // Call Salesforce REST API
+	            JSONObject response = (JSONObject) HTTPClientWrapper.runGetRequest("/query/?q=" + encodedSoql);
+
+	            // Parse response
+	            if (response != null && response.has("records")) {
+	                JSONArray records = response.getJSONArray("records");
+	                if (records.isEmpty()) {
+	                    System.out.println(" Record " + recordId + " is unlocked.");
+	                    return true;
+	                }
+	            }
+
+	            // Still locked → wait & retry
+	            System.out.println(" Record " + recordId + " is still locked, waiting...");
+	            Thread.sleep(5000);
+	            waited += 5;
+	        }
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	    return false; // Timed out
+	}
+	
+
+	
+	// ✅ Validate modal header text
+    public void assertModalHeader(String expectedText) {
+        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//h2";
+        WebElement header = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+        if (!header.getText().trim().equals(expectedText)) {
+            throw new AssertionError("Header mismatch! Expected: " + expectedText + ", Found: " + header.getText());
+        }
+    }
+
+    // ✅ Validate modal message text (exact match)
+    public void assertModalMessage(String expectedText) {
+        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//lightning-formatted-rich-text";
+        WebElement msg = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+        if (!msg.getText().contains(expectedText)) {
+            throw new AssertionError("Message mismatch! Expected to contain: " + expectedText + ", Found: " + msg.getText());
+        }
+    }
+
+
+	
+	public void assertButtonText(String expectedText) {
+	    String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//button[normalize-space()='" + expectedText + "']";
+	    try {
+	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	        String actual = button.getText().trim();
+	        if (!actual.equals(expectedText)) {
+	            throw new AssertionError("Button text mismatch! Expected: " + expectedText + ", Found: " + actual);
+	        }
+	    } catch (TimeoutException e) {
+	        throw new AssertionError("Button with text '" + expectedText + "' not found in modal within timeout.");
+	    }
+	}
+	
+
+    public void assertStageTabSelected(String tabName) {
+        WebElement tab = waitForElementToBeClickable(By.xpath("//a[contains(@class,'tabHeader') and contains(normalize-space(),'" + tabName + "')]"), DEFAULT_WAIT_SECONDS);
+        boolean isSelected = tab.getAttribute("aria-selected").equalsIgnoreCase("true")?true:false;
+        Assert.assertTrue(isSelected, "Tab '" + tabName + "' should be selected");
+    }
+
+    
+    public void assertStageTabIsCurrent(String tabName) {
+        WebElement tab = driver.findElement(By.xpath("//a[contains(@class,'tabHeader') and contains(normalize-space(),'" + tabName + "')]"));
+        boolean isSelected = tab.getAttribute("aria-current").equalsIgnoreCase("true")?true:false;
+        Assert.assertTrue(isSelected, "Tab '" + tabName + "' should be selected");
+    }
+	
+	// ============================================================
+		// --- Get Current Object Section ---
+	// ============================================================
+	
+	// Explicitly set/clear current object (useful in setup or test helpers)
+	public void setCurrentObject(String objectApiName) {
+	    this.currentObjectApiName = objectApiName;
+	    System.out.println("SFPageBase: currentObject set -> " + objectApiName);
+	}
+
+	public String getCurrentObject() {
+	    if (this.currentObjectApiName == null || this.currentObjectApiName.isEmpty()) {
+	        // lazy auto-detect
+	        try {
+	            updateCurrentObjectAuto();
+	        } catch (Exception e) {
+	            // keep silent — caller can decide how to handle null
+	        }
+	    }
+	    return this.currentObjectApiName;
+	}
+
+	public void clearCurrentObject() {
+	    this.currentObjectApiName = null;
+	}
+
+	// internal helper for methods that must have object
+	private String requireCurrentObject() {
+	    String obj = getCurrentObject();
+	    if (obj == null || obj.isEmpty()) {
+	        // Try ThreadLocal fallback
+	        try {
+	            String threadObj = BaseTest.getThreadCurrentObject();
+	            if (threadObj != null && !threadObj.isEmpty()) {
+	                this.currentObjectApiName = threadObj;
+	                return threadObj;
+	            }
+	        } catch (Throwable ignored) { }
+
+	        throw new IllegalStateException("Current object not set. Call setCurrentObject(...) or ensure a navigation method ran.");
+	    }
+	    return obj;
 	}
 	
 	// ============================================================
