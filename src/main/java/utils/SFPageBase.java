@@ -515,7 +515,7 @@ public class SFPageBase extends PageBase {
 
 	    // ✅ Click button by text
 	    public void clickButton(String buttonText) {
-	        String xpath = "//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[@role='button' and normalize-space()='" + buttonText + "']";
+	        String xpath = "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[@role='button' and normalize-space()='" + buttonText + "'])[last()]";
 	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	        SFClick(button);
 	        hardwait(2);
@@ -524,7 +524,7 @@ public class SFPageBase extends PageBase {
 	    
 	    public void clickTab(String tabName) {
 			String xpath = "//one-app-nav-bar-item-root//a[@title='" 
-					+ tabName + "'] | //div[contains(@class,'active')]//li[@class='slds-tabs_default__item' and @title='"
+					+ tabName + "'] | //div[contains(@class,'active')]//li[contains(@class,'slds-tabs_default__item') and @title='"
 					+ tabName + "']";
 	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	        SFClick(button);
@@ -743,7 +743,7 @@ public class SFPageBase extends PageBase {
 	}
 	
 	private String getEditButtonXPath(String label){
-		return String.format("//div[contains(@class,'active')]//button[contains(@title,'Edit %s')]", label);
+		return String.format("(//div[contains(@class,'active')]//button[contains(@title,'Edit %s')])[last()]", label);
 	}
 
 	private WebElement findElementWithWait(By locator, int waitInSeconds) {
@@ -775,10 +775,10 @@ public class SFPageBase extends PageBase {
 	        WebElement option = findOptionInListWithScroll(availableList, item);
 	        scrollIntoView(option);
 	        option.click();
-	        Thread.sleep(5000);
+		    waitAndClick(moveButton);
+	        hardwait(3);
 	    }
-	    waitAndClick(moveButton);
-	    Thread.sleep(1000);
+        hardwait(3);
 	}
 
 	// Clearing MultiPicklist
@@ -825,7 +825,7 @@ public class SFPageBase extends PageBase {
 	private WebElement scrollToSection(String sectionName) {
 
 	    WebDriverWait localWait = new WebDriverWait(driver, Duration.ofSeconds(10));
-	    String sectionXpath = "//div[contains(@class,'active')]//*[contains(local-name(),'h2') or contains(local-name(),'h3') ]//span[text()='" + sectionName + "']";
+	    String sectionXpath = "//div[contains(@class,'active')]//*[contains(local-name(),'h2') or contains(local-name(),'h3') ]//span[text()='" + sectionName + "'] | //div[contains(@class,'active')]//*[contains(local-name(),'h2') or contains(local-name(),'h3') ]//p[text()='" + sectionName + "']";
 	    WebElement section = localWait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(sectionXpath)));
 
 	    ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", section);
@@ -862,7 +862,7 @@ public class SFPageBase extends PageBase {
 	    // Step 2: Open dropdown if not already open
 	    WebElement dropdownButton = container.findElement(By.xpath(".//button[contains(@class,'slds-combobox__input')]"));
 	    if (!Boolean.parseBoolean(dropdownButton.getAttribute("aria-expanded"))) {
-	        dropdownButton.click();
+	        SFClick(dropdownButton);
 	    }
 
 	    // Step 3: Fetch all options from dropdown

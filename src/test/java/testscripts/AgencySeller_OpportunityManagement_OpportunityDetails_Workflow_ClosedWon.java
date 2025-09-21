@@ -93,8 +93,8 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	    accountData.put("Website", website);
 
 	    // Custom fields
-	    accountData.put("Billing Detail", "Co-Op");
-	    accountData.put("Billing Type", "Broadcast");
+//	    accountData.put("Billing Detail", "Co-Op");
+//	    accountData.put("Billing Type", "Broadcast");
 	    accountData.put("Client Segment", "Multiscreen");
 	    accountData.put("Customer Threshold", "SMB");
 	    accountData.put("Finance Approval Status", "");
@@ -120,7 +120,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			// UI login + navigate
 			lightningloginpage.openHomepage(appUrl);
 			lightningloginpage.loginWithRole("AgencySeller");
-			driver.navigate().to("https://effectv--p2qa.sandbox.lightning.force.com/lightning/r/Opportunity/006VZ00000Nc3PRYAZ/view");
+			driver.navigate().to("https://effectv--p2qa.sandbox.lightning.force.com/lightning/r/Opportunity/006VZ00000NcCXZYA3/view");
 			lightningloginpage.applauncher("Account");
 
 			String recordID = objectlistpage.getRecordIdByUiLabelAndValue("Account", "Account Name", accountName);
@@ -209,13 +209,15 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        
 
 			
-			//------- verified working till here -----
 	        objectlistpage.assertFieldLabelAndValue("Revenue Type", "");
 	        objectlistpage.assertFieldLabelAndValue("Billing Type", "");
+	        objectlistpage.setCurrentObject("Opportunity");  // to be deleted step
+	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 	        objectlistpage.assertFieldLabelAndValue("Makegood Approval", "");
 	        objectlistpage.assertFieldLabelAndValue("Makegood Parameters - Linear", "");
 	        objectlistpage.assertFieldLabelAndValue("Makegood Parameters - Digital", "");
 	        objectlistpage.assertFieldLabelAndValue("Makegood Currency", "");
+	        
 
 	        // -------------------------
 	        // 🔹 Stage: Order Fulfillment (99–101)
@@ -228,47 +230,58 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        // 🔹 Edit Revenue / Billing / Makegood (102–129)
 	        // -------------------------
-	        objectlistpage.clickTab("Details");
+
 	        objectlistpage.clickEditByFieldLabel("Revenue Type");
 	        objectlistpage.formValueFiller("Revenue Type", "Ampersand 360 Passport");
 	        objectlistpage.formValueFiller("Campaign Status", "In Progress");
 	        objectlistpage.formValueFiller("Billing Type", "Broadcast");
 	        objectlistpage.formValueFiller("Co-Op", "");
+	        objectlistpage.setCurrentObject("Opportunity"); // to be deleted step
+	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 	        objectlistpage.assertPicklistOptionsEquals("Makegood Approval", "[Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight]");
-	        objectlistpage.formValueFiller("Makegood Approval", "--None--");
+	        objectlistpage.formValueFiller("Makegood Approval", "Not Allowed");
 
 	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Linear",
 	                "[Flexible,Same networks ordered/flexible daypart,Same networks ordered/same dayparts,Same Market/zones,Same Demo/Audience]");
-	        objectlistpage.formValueFiller("Makegood Parameters - Linear", "--None--");
+	        objectlistpage.formValueFiller("Makegood Parameters - Linear", "Flexible");
 
-	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Digital","[Flexible,Same Product Ordered,Same Market/zones,Same Demo/Audience]");
+	        objectlistpage.assertAvailablePicklistOptionsEquals("Makegood Parameters - Digital","[Flexible,Same Product Ordered,Same Market/zones,Same Demo/Audience]");
 	        objectlistpage.formValueFiller("Makegood Parameters - Digital", "[Flexible,Same Product Ordered]");
-	        objectlistpage.formValueFiller("Makegood Currency", "--None--");
+	        objectlistpage.formValueFiller("Makegood Currency", "By spot");
 
 	        objectlistpage.assertPicklistOptionsEquals("Won Reason","[Competitive Pricing,Strong Relationship,Unique Value Proposition,Strong ROI Projections,Product Differentiation]");
 	        objectlistpage.formValueFiller("Won Reason", "Competitive Pricing");
+	        
+	        
 	        objectlistpage.clickButton("Save");
 
 	        objectlistpage.assertFieldLabelAndValue("Makegood Parameters - Digital", "Flexible;Same Product Ordered");
+	        
+
+
 	        objectlistpage.assertSectionHeaders("Guidance for Success");
 
 	        // -------------------------
 	        // 🔹 Campaign Status & Fulfillment (135–151)
 	        // -------------------------
 	        objectlistpage.clickEditByFieldLabel("Campaign Status");
-	        objectlistpage.assertPicklistOptionsEquals("[Campaign Status", "OneConnect – Submitted to CM,Submitted to CM,Revised to CM,Pending – Action Required,In Progress,Complete]");
+	        objectlistpage.assertPicklistOptionsEquals("Campaign Status", "OneConnect – Submitted to CM,Submitted to CM,Revised to CM,Pending – Action Required,In Progress,Complete]");
 	        objectlistpage.formValueFiller("Campaign Status", "Revised to CM");
 	        objectlistpage.clickButton("Save");
 
+//			//------- working till here - verified -----
+
+	        
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
 	        objectlistpage.assertPicklistOptionsEquals("Fulfillment Progress","[Ready for CIOC,Assigned to CIOC,CIOC rejected back to CM,CIOC complete]");
 	        objectlistpage.formValueFiller("Fulfillment Progress", "Ready for CIOC");
 	        objectlistpage.clickButton("Save");
 
+	        
 	        objectlistpage.assertFieldLabelAndValue("Campaign Status", "Revised to CM");
 	        objectlistpage.assertFieldLabelAndValue("Fulfillment Progress", "Ready for CIOC");
 
-	        driver.navigate().refresh();
+	        objectlistpage.refreshPage();
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
 	        objectlistpage.formValueFiller("Fulfillment Progress", "CIOC complete");
 	        objectlistpage.formValueFiller("Campaign Status", "Submitted to CM");
