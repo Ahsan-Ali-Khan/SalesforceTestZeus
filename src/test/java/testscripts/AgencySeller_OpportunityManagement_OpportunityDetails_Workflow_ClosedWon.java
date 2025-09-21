@@ -1,18 +1,13 @@
 package testscripts;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 import org.json.JSONObject;
-import org.openqa.selenium.WebElement;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
-import pageobjects.ObjectListPage;
 import utils.HTTPClientWrapper;
 
 public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_ClosedWon extends BaseTest {

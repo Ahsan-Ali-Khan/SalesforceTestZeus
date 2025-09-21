@@ -5,9 +5,6 @@ import java.util.Map;
 import java.util.Random;
 
 import org.json.JSONObject;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
-import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
@@ -117,11 +114,10 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 
 			String recordID = objectlistpage.getRecordIdByUiLabelAndValue("Account", "Account Name", accountName);
 			objectlistpage.NavigateToRecord("Account", recordID);
-			objectlistpage.uiApiParser(recordID);
 
 			objectlistpage.clickEditByFieldLabel("Status");
 			objectlistpage.formValueFiller("Status", "Active");
-			objectlistpage.clickSave();
+			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Prospect Type", "Advertiser");
 			objectlistpage.assertFieldLabelAndValue("Account Record Type", "Prospect");
 			objectlistpage.assertFieldLabelAndValue("Status", "Active");
@@ -136,25 +132,25 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			objectlistpage.assertFormValueByLabel("Shipping Zip/Postal Code", "06905");
 			objectlistpage.assertFormValueByLabel("Account Name", accountName);
 			objectlistpage.assertFormValueByLabel("Website", website);
-			objectlistpage.formValueFillerClearInput("Account Name");
-			objectlistpage.clickSave();
+			objectlistpage.formValueClear("Account Name");
+			objectlistpage.clickButton("Save");
 			objectlistpage.assertFormErrorValueByLabel("Account Name", "Complete this field");
 			objectlistpage.assertFormValueSnags("Account Name", "Account Name");
 			objectlistpage.formValueFiller("Account Name", accountName2);
 			objectlistpage.formValueFiller("Industry", "--None--");
 			objectlistpage.formValueFiller("Phone", phone2);
-			objectlistpage.clickSave();
+			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Account Name", accountName2);
 			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "");
 			objectlistpage.clickEditByFieldLabel("Account Name");
 			objectlistpage.formValueFiller("Advertiser Type", "[Local]");
-			objectlistpage.clickSave();
+			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "Local");
 			objectlistpage.assertFieldLabelAndValue("Website", website);
 			objectlistpage.assertFieldLabelAndValue("Industry", "");
 			objectlistpage.clickEditByFieldLabel("Status");
 			objectlistpage.formValueFiller("Status", "New");
-			objectlistpage.clickSave();
+			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Status", "New");
 
 		} catch (Exception e) {

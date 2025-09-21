@@ -462,7 +462,7 @@ public class SFPageBase extends PageBase {
 	
 
 	// Clear input by label
-	public void formValueFillerClearInput(String label) throws Exception {
+	public void formValueClear(String label) throws Exception {
 		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
 	    WebElement fieldElement = getFieldElementByLabel(label);
 	    scrollIntoView(fieldElement);
