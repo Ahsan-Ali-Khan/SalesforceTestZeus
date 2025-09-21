@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import org.json.JSONObject;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.Keys;
+import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -65,38 +67,7 @@ public class SFPageBase extends PageBase {
 		HTTPClientWrapper.SFLogin_API(loginUrl, grantService, clientId, clientSecret, username, password);
 	}
 
-	public void waitForSFPagetoLoad() throws InterruptedException {
-		// TODO: Replace Thread.sleep with WebDriverWait or FluentWait for better
-		// performance and stability.
-		Thread.sleep(3000);
-		try {
-			WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(50));
-
-			ExpectedCondition<Boolean> jsLoad = d -> ((JavascriptExecutor) d)
-					.executeScript("return document.readyState").toString().equals("complete");
-
-			ExpectedCondition<Boolean> aurascriptLoad = d -> {
-				String WAIT_FOR_AURA_SCRIPT = "return (typeof $A !== 'undefined' && $A && $A.metricsService.getCurrentPageTransaction().config.context.ept > 0)";
-				String EPT_COUNTER_SCRIPT = "return ($A.metricsService.getCurrentPageTransaction().config.context.ept)";
-				Boolean result = (Boolean) ((JavascriptExecutor) d).executeScript(WAIT_FOR_AURA_SCRIPT);
-				if (Boolean.TRUE.equals(result)) {
-					System.out.println("Experienced Page Load time: "
-							+ ((JavascriptExecutor) d).executeScript(EPT_COUNTER_SCRIPT));
-					return true;
-				}
-				return false;
-			};
-
-			if (wait1.until(jsLoad) && wait1.until(aurascriptLoad)) {
-				System.out.println("Page load complete");
-			} else {
-				Thread.sleep(2000);
-			}
-		} catch (Exception e) {
-			System.out.println("Exception in waitForSFPagetoLoad: " + e.getMessage());
-			Thread.sleep(5000);
-		}
-	}
+	
 
 	public String getRecordUrl(String objectApiName, String recordId) {
 		if (recordId == null || recordId.isEmpty()) {
@@ -322,7 +293,7 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	public void clickEditByFieldLabel(String fieldLabel) throws InterruptedException {
 		Thread.sleep(5000);
-		String xpath = String.format("//div[contains(@class,'active')]//button[@title='Edit %s']", fieldLabel);
+		String xpath = getEditButtonXPath(fieldLabel);
 		SFClick(driver.findElement(By.xpath(xpath)));
 	}
 	
@@ -384,6 +355,19 @@ public class SFPageBase extends PageBase {
 	// Fill form field by label and value
 	public void formValueFiller(String label, String targetValue) throws Exception {
 		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+		
+		// === 1. Click edit if inline-edit button exists ===
+	    try {
+	        WebElement editBtn = driver.findElement(By.xpath( getEditButtonXPath(label)
+	        ));
+	        if(editBtn.isDisplayed() && editBtn.isEnabled()) {
+	            SFClick(editBtn);
+	            Thread.sleep(100); // wait for input to appear
+	        }
+	    } catch (NoSuchElementException e) {
+	        // No inline edit — probably already in edit mode
+	    }
+	    
 	    WebElement fieldElement = getFieldElementByLabel(label);
 	    scrollIntoView(fieldElement);
 	    String type = fields.get(label).dataType;
@@ -396,16 +380,30 @@ public class SFPageBase extends PageBase {
 	        case "Currency":
 	        case "Double":
 	        case "Date":
-	        case "Boolean":
 	        case "Email":
 	        case "TextArea":
 	            clearAndSendKeys(fieldElement, targetValue);
 	            break;
+	        case "Boolean":
+	            SFClick(fieldElement);
+	            break;
 	        case "Picklist":
-	            waitAndClick(fieldElement);
-	            fieldElement.sendKeys(targetValue);
-	            Thread.sleep(2000);
-	            fieldElement.sendKeys(Keys.ENTER);
+	        	String tag = fieldElement.getTagName().toLowerCase();
+	            if ("a".equals(tag)) {
+	                // Inline edit style picklist
+	            	waitAndClick(fieldElement);
+		            fieldElement.sendKeys(targetValue);
+	                WebElement option = driver.findElement(By.xpath(
+	                    "//a[@role='option' and @title = '"+ targetValue +"']"
+	                ));
+	                waitAndClick(option);
+	            } else {
+	                // Standard record edit style picklist
+		            waitAndClick(fieldElement);
+		            fieldElement.sendKeys(targetValue);
+		            Thread.sleep(2000);
+		            fieldElement.sendKeys(Keys.ENTER);
+	            }
 	            break;
 	        case "MultiPicklist":
 	            fillMultiPicklist(label, targetValue);
@@ -460,6 +458,8 @@ public class SFPageBase extends PageBase {
 	            throw new Exception("Unsupported field type: " + type);
 	    }
 	}
+	
+	
 
 	// Clear input by label
 	public void formValueFillerClearInput(String label) throws Exception {
@@ -503,9 +503,7 @@ public class SFPageBase extends PageBase {
 		    WebElement btn = getQuickActionElement(objectApiName, actionLabel);
 		    SFClick(btn);
 		    // Quick actions often navigate (to create/edit target). Wait & update.
-		    try {
-		        waitForSFPagetoLoad();
-		    } catch (InterruptedException ignored) { }
+		    waitForSFPagetoLoad();
 		    updateCurrentObjectAuto();
 		    System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
 		}
@@ -520,6 +518,7 @@ public class SFPageBase extends PageBase {
 	        String xpath = "//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[@role='button' and normalize-space()='" + buttonText + "']";
 	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	        SFClick(button);
+	        hardwait(2);
 	        updateCurrentObjectAuto();
 	    }
 	    
@@ -530,6 +529,50 @@ public class SFPageBase extends PageBase {
 	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
 	        SFClick(button);
 	        updateCurrentObjectAuto();
+	    }
+	    
+	    public void enterSearchText(String textTobeSearched) throws InterruptedException {
+	    	WebElement SearchTextElement = findSearchTextElement();
+	        enterValue(SearchTextElement, textTobeSearched);
+	        
+	    }
+	    
+	    public WebElement findSearchTextElement() {
+			String xpath = "(//input[@aria-describedby='Search' or contains(@placeholder,'Search') ] | (//*[local-name()='svg' and @data-key='search']/preceding::input)[last()])[last()]";
+	        return waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	    }
+	    
+	    public void pressEnterKeyAfterSearch() {
+	    	findSearchTextElement().sendKeys(Keys.ENTER);
+	        
+	    }
+	    
+	    
+	    public void selectOption(int option) {
+	        String optionXpath = "(//div[contains(@class,'active')]//li[contains(@class,'lookup__item')]//a[@role='option'] | " +
+	                             "//div[contains(@class,'active')]//lightning-base-combobox-item[@role='option'])[" + option + "]";
+	        hardwait(2);
+	        WebElement optionElement = null;
+	        try {
+	            optionElement = waitForElementToBeClickable(By.xpath(optionXpath), DEFAULT_WAIT_SECONDS);
+	            SFClick(optionElement);
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	            // Retry after clicking search text element
+	            findSearchTextElement().click();
+	            optionElement = waitForElementToBeClickable(By.xpath(optionXpath), DEFAULT_WAIT_SECONDS);
+	            SFClick(optionElement);
+	        }
+	    }
+	    
+	    public void selectOptionByName(String optionName) {
+			String cssSelector = "[role='dialog'] .uiPopupTrigger a";
+	        WebElement optionElement = waitForElementToBeClickable(By.cssSelector(cssSelector), DEFAULT_WAIT_SECONDS);
+	        waitAndClick(optionElement);
+	        optionElement.sendKeys(optionName);
+	        hardwait(2);
+            optionElement.sendKeys(Keys.ENTER);
+	        
 	    }
 	
 	// ===============================
@@ -679,19 +722,28 @@ public class SFPageBase extends PageBase {
 	        case "Currency":
 	        case "Double":
 	        case "Date":
-	        case "Boolean":
 	        case "Email":
-	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'" +label+ "')]/@id)]";
+	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@id=string(//label[normalize-space()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'" +label+ "')]/@id)]";
 	        case "TextArea":
 	            return "//div[contains(@class,'active')]//textarea[@id=string(//label[text()='" + label + "']/@for)]";
 	        case "Picklist":
-	            return "//div[contains(@class,'active')]//button[@id=string(//label[text()='" + label + "']/@for)] | " +
-	                   "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)]";
+	            return // For Standard Lightning record edit form
+	                    "//div[contains(@class,'active')]//button[@id=string(//label[normalize-space(text())='" + label + "']/@for)] | " +
+	                    "//div[contains(@class,'active')]//input[@id=string(//label[normalize-space(text())='" + label + "']/@for)] | " +
+
+	                    // Generic inline edit / modals
+	                    "//span[normalize-space(text())='" + label + "']/ancestor::div[contains(@class,'uiInputSelect')]//a[@role='combobox']";
 	        case "MultiPicklist":
 	            return "//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='" + label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')]";
+	        case "Boolean":
+	        	return "//label[normalize-space()='"+label+"']";
 	        default:
 	            throw new Exception("Unsupported field type: " + type);
 	    }
+	}
+	
+	private String getEditButtonXPath(String label){
+		return String.format("//div[contains(@class,'active')]//button[contains(@title,'Edit %s')]", label);
 	}
 
 	private WebElement findElementWithWait(By locator, int waitInSeconds) {
@@ -801,6 +853,77 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// --- Assertions Section ---
 	// ============================================================
+	public void assertPicklistOptionsEquals(String label, String expectedValues) {
+	    // Step 1: Locate combobox container by label text
+	    WebElement container = driver.findElement(By.xpath(
+	        "//label[normalize-space()='" + label + "']/ancestor::lightning-combobox"
+	    ));
+
+	    // Step 2: Open dropdown if not already open
+	    WebElement dropdownButton = container.findElement(By.xpath(".//button[contains(@class,'slds-combobox__input')]"));
+	    if (!Boolean.parseBoolean(dropdownButton.getAttribute("aria-expanded"))) {
+	        dropdownButton.click();
+	    }
+
+	    // Step 3: Fetch all options from dropdown
+	    List<WebElement> options = container.findElements(By.xpath(
+	        ".//lightning-base-combobox-item//span[@title]"
+	    ));
+
+	    List<String> actualValues = options.stream()
+	            .map(e -> e.getAttribute("title").trim())
+	            .filter(v -> !v.equalsIgnoreCase("--None--")) // ignore "--None--" if not required
+	            .collect(Collectors.toList());
+
+	    // Step 4: Clean expected values
+	    String values = expectedValues.replaceAll("[\\[\\]]", "");
+	    List<String> expectedList = Arrays.stream(values.split(",\\s*"))
+	            .map(String::trim)
+	            .collect(Collectors.toList());
+
+	    // Step 5: Compare lists (ignoring order)
+	    if (!new HashSet<>(actualValues).equals(new HashSet<>(expectedList))) {
+	        throw new AssertionError("Picklist options for '" + label + "' mismatch. " +
+	                "Expected: " + expectedList + ", but got: " + actualValues);
+	    }
+	}
+	
+	
+	public void assertTableCellValue(String columnName, String expectedValue) {
+	    // Step 1: Find all headers
+	    List<WebElement> headers = driver.findElements(
+	        By.xpath("//table[contains(@class,'slds-table')]//thead//th")
+	    );
+
+	    int columnIndex = -1;
+	    for (int i = 0; i < headers.size(); i++) {
+	        String headerText = headers.get(i).getText().trim();
+	        if (headerText.equalsIgnoreCase(columnName)) {
+	            columnIndex = i + 1; // XPath is 1-based
+	            break;
+	        }
+	    }
+
+	    if (columnIndex == -1) {
+	        throw new RuntimeException("Column '" + columnName + "' not found in table headers.");
+	    }
+
+	    // Step 2: Build dynamic locator for the first row's cell in that column
+	    String cellXpath = String.format(
+	        "//table[contains(@class,'slds-table')]//tbody/tr[1]/*[%d]",
+	        columnIndex
+	    );
+
+	    WebElement cellElement = driver.findElement(By.xpath(cellXpath));
+	    String actualValue = cellElement.getText().trim();
+
+	    // Step 3: Assert values
+	    if (!actualValue.equals(expectedValue)) {
+	        throw new AssertionError("Mismatch for column '" + columnName +
+	                "': expected [" + expectedValue + "] but found [" + actualValue + "]");
+	    }
+	}
+	
 	public void assertSectionHeaders(String listOfSections) {
 	    String cleaned =  listOfSections.replaceAll("[\\[\\]]", "").trim();
 	    String[] expectedSectionNames = cleaned.split("\\s*,\\s*");
@@ -913,7 +1036,8 @@ public class SFPageBase extends PageBase {
 	}
 
 	public void assertFieldLabelAndValue(String fieldLabel, String expectedValue) throws Exception {
-		String genericXpathLocator = "(//div[normalize-space()='" 
+		String genericXpathLocator = "(//div[normalize-space()='"
+				+ fieldLabel + "']//following-sibling::div[1]//lightning-primitive-input-checkbox |//div[normalize-space()='" 
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel + "']//following-sibling::div[1]//div[contains(@class,'recordTypeName')]/span | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-address | //div[contains(@class,'active')]//div[normalize-space()='"
@@ -1212,7 +1336,9 @@ public class SFPageBase extends PageBase {
 	    }
 	}
 
-	public String extractRecordIdFromUrl(String url) {
+	public String extractRecordIdFromUrl() {
+
+    	String url = driver.getCurrentUrl();
 	    try {
 	        // Example: https://.../lightning/r/Opportunity/006VZ00000NXjxBYAT/view
 	        String[] parts = url.split("/");
@@ -1224,7 +1350,7 @@ public class SFPageBase extends PageBase {
 	}
 	
 	public boolean waitUntilRecordUnlocked(int maxWaitSeconds) {
-		String recordId = extractRecordIdFromUrl(driver.getCurrentUrl());
+		String recordId = extractRecordIdFromUrl();
 	    int waited = 0;
 	    try {
 	        while (waited < maxWaitSeconds) {
@@ -1292,7 +1418,7 @@ public class SFPageBase extends PageBase {
 	
 
     public void assertStageTabSelected(String tabName) {
-        WebElement tab = waitForElementToBeClickable(By.xpath("//a[contains(@class,'tabHeader') and contains(normalize-space(),'" + tabName + "')]"), DEFAULT_WAIT_SECONDS);
+        WebElement tab = waitForPresenceOfElement(By.xpath("//a[contains(@class,'tabHeader') and contains(normalize-space(),'" + tabName + "')]"), DEFAULT_WAIT_SECONDS);
         boolean isSelected = tab.getAttribute("aria-selected").equalsIgnoreCase("true")?true:false;
         Assert.assertTrue(isSelected, "Tab '" + tabName + "' should be selected");
     }

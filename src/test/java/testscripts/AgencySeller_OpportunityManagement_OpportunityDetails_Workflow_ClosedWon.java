@@ -12,6 +12,7 @@ import org.openqa.selenium.WebElement;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
+import pageobjects.ObjectListPage;
 import utils.HTTPClientWrapper;
 
 public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_ClosedWon extends BaseTest {
@@ -119,6 +120,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			// UI login + navigate
 			lightningloginpage.openHomepage(appUrl);
 			lightningloginpage.loginWithRole("AgencySeller");
+			driver.navigate().to("https://effectv--p2qa.sandbox.lightning.force.com/lightning/r/Opportunity/006VZ00000Nc3PRYAZ/view");
 			lightningloginpage.applauncher("Account");
 
 			String recordID = objectlistpage.getRecordIdByUiLabelAndValue("Account", "Account Name", accountName);
@@ -145,70 +147,48 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			objectlistpage.assertFieldLabelAndValue("Flight End Date", flightEndDate);
 			objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 			objectlistpage.assertFieldLabelAndValue("Opportunity Record Type", "Tactic");
-			objectlistpage.hardwait(2*60);
+			objectlistpage.hardwait(5*60);
 			objectlistpage.clickButton("Mark Stage as Complete");
 			objectlistpage.assertToastMessageContains("Stage changed successfully.");
-			
-			//------- working till here -----
-
-			// -------------------------
-	        // 🔹 Stage: Building Solution
-	        // -------------------------
+			objectlistpage.setCurrentObject("OpportunityContactRole");
 	        objectlistpage.assertStageTabSelected("Building Solution");
-	        
-//	        objectlistpage.assertElementNotVisible("Media Planning Engaged");
-//	        objectlistpage.assertElementNotVisible("Sales Development Engaged");
-//	        objectlistpage.assertElementNotVisible("Pacesetting");
 	        objectlistpage.assertFieldLabelAndValue("ROI", "");
-
 	        objectlistpage.clickButton("Mark Stage as Complete");
 	        objectlistpage.assertToastMessageContains("Please fill those fields in order to move to next stage : Amount, Flight Start, Flight End, Contact, Market and Opportunity Name.");
-
-	        driver.navigate().refresh();
-	        objectlistpage.waitForSFPagetoLoad();
-
-	        // -------------------------
-	        // 🔹 Add Contact Roles (Steps 53–65)
-	        // -------------------------
+	        objectlistpage.refreshPage();
 	        objectlistpage.clickTab("Related");
 	        objectlistpage.assertSectionHeaders("Contact Roles");
 	        objectlistpage.clickButton("Add Contact Roles");
-	        objectlistpage.enterSearchTextField("Webomates"); 
-	        
-//	        objectlistpage.selectFirstOption("Search Contacts");
+	        objectlistpage.enterSearchText("Webomates"); 
+	        objectlistpage.selectOption(1); 
+	        objectlistpage.hardwait(2);
 	        objectlistpage.clickButton("Next");
-//	        objectlistpage.clickField("Primary Contact");
-//	        objectlistpage.selectSuggestedOption("Primary Contact");
-//	        objectlistpage.clickDropdown("Role");
-//	        objectlistpage.selectDropdownOption("Role", "Influencer");
+	        objectlistpage.enterSearchText("Webomates"); 
+	        objectlistpage.selectOption(1); 
+	        objectlistpage.setCurrentObject("OpportunityContactRole");
+	        objectlistpage.formValueFiller("Role","Influencer");
 	        objectlistpage.clickButton("Save");
-
-	        // -------------------------
-	        // 🔹 ROI Edit Flow (Steps 66–76)
-	        // -------------------------
+	        objectlistpage.clickTab("Details");
 	        objectlistpage.clickEditByFieldLabel("ROI");
-//	        objectlistpage.assertPicklistOptionsEqual("ROI", Arrays.asList("Instant Impact", "Multi-screen Impact"));
-//	        objectlistpage.clickAvailableOption("ROI", "Instant Impact");
-	        objectlistpage.clickButton("Move to Chosen");
-//	        String ROI2 = objectlistpage.getChosenValue("ROI");
-//	        objectlistpage.clickCheckbox("Pacesetting");
+	        objectlistpage.assertAvailablePicklistOptionsEquals("ROI","[Instant Impact,Multi-screen Impact]");
+	        objectlistpage.formValueFiller("ROI","[Instant Impact]");
+	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
+	        objectlistpage.formValueFiller("Pacesetting","true");// <-- issue
 	        objectlistpage.clickButton("Save");
-//	        objectlistpage.assertFieldLabelAndValue("ROI", ROI2);
-
-	        // -------------------------
-	        // 🔹 Verify Dates + Additional Details (77–79)
-	        // -------------------------
+	        objectlistpage.assertFieldLabelAndValue("ROI", "Instant Impact");
 	        objectlistpage.assertFieldLabelAndValue("Flight Start Date", flightStartDate);
 	        objectlistpage.assertFieldLabelAndValue("Flight End Date", flightEndDate);
-//	        objectlistpage.assertLabelsPresent("Additional Details",
-//	                Arrays.asList("Media Planning Engaged", "Sales Development Engaged", "Pacesetting"));
+	        objectlistpage.assertFieldLabelAndValue("Media Planning Engaged","Media Planning Engaged");
+	        objectlistpage.assertFieldLabelAndValue("Sales Development Engaged","Sales Development Engaged");
+	        objectlistpage.assertFieldLabelAndValue("Pacesetting","Pacesetting");
+	        
 
 	        // -------------------------
 	        // 🔹 Add Market (80–83)
 	        // -------------------------
-	        objectlistpage.clickButton("Add Market");
-	        objectlistpage.formValueFiller("Search Market", "New York");
-//	        objectlistpage.selectOption("Market", "New York");
+	        objectlistpage.clickQuickAction("Add Market");
+	        objectlistpage.enterSearchText("New York");
+	        objectlistpage.selectOption(1); 
 	        objectlistpage.clickButton("Next");
 
 	        // -------------------------
@@ -218,13 +198,18 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        objectlistpage.assertToastMessageContains("Stage changed successfully.");
 	        objectlistpage.assertStageTabSelected("Presenting Solution");
 
-	        driver.navigate().refresh();
+	        objectlistpage.refreshPage();
 	        objectlistpage.clickButton("Mark Stage as Complete");
 	        objectlistpage.assertStageTabSelected("Negotiating Solution");
 
 	        // -------------------------
 	        // 🔹 Verify Empty Fields (91–98)
 	        // -------------------------
+
+	        
+
+			
+			//------- verified working till here -----
 	        objectlistpage.assertFieldLabelAndValue("Revenue Type", "");
 	        objectlistpage.assertFieldLabelAndValue("Billing Type", "");
 	        objectlistpage.assertFieldLabelAndValue("Makegood Approval", "");
@@ -237,51 +222,47 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        objectlistpage.clickButton("Mark Stage as Complete");
 	        objectlistpage.assertStageTabSelected("Order Fulfillment");
+	        
+	        // ---- done till here ---- //
 
 	        // -------------------------
 	        // 🔹 Edit Revenue / Billing / Makegood (102–129)
 	        // -------------------------
+	        objectlistpage.clickTab("Details");
 	        objectlistpage.clickEditByFieldLabel("Revenue Type");
-	        objectlistpage.formValueFiller("Revenue Type", "SomeOption");
+	        objectlistpage.formValueFiller("Revenue Type", "Ampersand 360 Passport");
 	        objectlistpage.formValueFiller("Campaign Status", "In Progress");
-	        objectlistpage.formValueFiller("Billing Type", "Co-Op");
-	        objectlistpage.formValueFiller("Makegood Approval", "Co-Op");
-//	        objectlistpage.assertPicklistOptionsEquals("Makegood Approval", "Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight");
-	        objectlistpage.formValueFiller("Makegood Approval", "Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight");
+	        objectlistpage.formValueFiller("Billing Type", "Broadcast");
+	        objectlistpage.formValueFiller("Co-Op", "");
+	        objectlistpage.assertPicklistOptionsEquals("Makegood Approval", "[Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight]");
+	        objectlistpage.formValueFiller("Makegood Approval", "--None--");
 
-//	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Linear",
-//	                "Flexible,Same networks ordered/flexible daypart,Same networks ordered/same dayparts,Same Market/zones,Same Demo/Audience");
-	        objectlistpage.formValueFiller("Makegood Parameters - Linear", "Flexible");
+	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Linear",
+	                "[Flexible,Same networks ordered/flexible daypart,Same networks ordered/same dayparts,Same Market/zones,Same Demo/Audience]");
+	        objectlistpage.formValueFiller("Makegood Parameters - Linear", "--None--");
 
-//	        objectlistpage.assertPicklistOptionsEqual("Makegood Parameters - Digital",
-//	                Arrays.asList("Flexible", "Same Product Ordered", "Same Market/zones", "Same Demo/Audience"));
-//	        objectlistpage.moveAvailableOptionToChosen("Makegood Parameters - Digital", "Flexible");
-//	        objectlistpage.moveAvailableOptionToChosen("Makegood Parameters - Digital", "Same Product Ordered");
+	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Digital","[Flexible,Same Product Ordered,Same Market/zones,Same Demo/Audience]");
+	        objectlistpage.formValueFiller("Makegood Parameters - Digital", "[Flexible,Same Product Ordered]");
+	        objectlistpage.formValueFiller("Makegood Currency", "--None--");
 
-//	        objectlistpage.selectDropdownOption("Makegood Currency", "USD");
-
-//	        objectlistpage.assertPicklistOptionsEqual("Won Reason",
-//	                Arrays.asList("Competitive Pricing", "Strong Relationship", "Unique Value Proposition",
-//	                        "Strong ROI Projections", "Product Differentiation"));
-//	        objectlistpage.selectDropdownOption("Won Reason", "Competitive Pricing");
+	        objectlistpage.assertPicklistOptionsEquals("Won Reason","[Competitive Pricing,Strong Relationship,Unique Value Proposition,Strong ROI Projections,Product Differentiation]");
+	        objectlistpage.formValueFiller("Won Reason", "Competitive Pricing");
 	        objectlistpage.clickButton("Save");
 
 	        objectlistpage.assertFieldLabelAndValue("Makegood Parameters - Digital", "Flexible;Same Product Ordered");
+	        objectlistpage.assertSectionHeaders("Guidance for Success");
 
 	        // -------------------------
 	        // 🔹 Campaign Status & Fulfillment (135–151)
 	        // -------------------------
 	        objectlistpage.clickEditByFieldLabel("Campaign Status");
-//	        objectlistpage.assertPicklistOptionsEqual("Campaign Status",
-//	                Arrays.asList("OneConnect – Submitted to CM", "Submitted to CM", "Revised to CM",
-//	                        "Pending – Action Required", "In Progress", "Complete"));
-//	        objectlistpage.selectDropdownOption("Campaign Status", "Revised to CM");
+	        objectlistpage.assertPicklistOptionsEquals("[Campaign Status", "OneConnect – Submitted to CM,Submitted to CM,Revised to CM,Pending – Action Required,In Progress,Complete]");
+	        objectlistpage.formValueFiller("Campaign Status", "Revised to CM");
 	        objectlistpage.clickButton("Save");
 
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
-//	        objectlistpage.assertPicklistOptionsEqual("Fulfillment Progress",
-//	                Arrays.asList("Ready for CIOC", "Assigned to CIOC", "CIOC rejected back to CM", "CIOC complete"));
-//	        objectlistpage.selectDropdownOption("Fulfillment Progress", "Ready for CIOC");
+	        objectlistpage.assertPicklistOptionsEquals("Fulfillment Progress","[Ready for CIOC,Assigned to CIOC,CIOC rejected back to CM,CIOC complete]");
+	        objectlistpage.formValueFiller("Fulfillment Progress", "Ready for CIOC");
 	        objectlistpage.clickButton("Save");
 
 	        objectlistpage.assertFieldLabelAndValue("Campaign Status", "Revised to CM");
@@ -289,8 +270,8 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 
 	        driver.navigate().refresh();
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
-//	        objectlistpage.selectDropdownOption("Fulfillment Progress", "CIOC complete");
-//	        objectlistpage.selectDropdownOption("Campaign Status", "Submitted to CM");
+	        objectlistpage.formValueFiller("Fulfillment Progress", "CIOC complete");
+	        objectlistpage.formValueFiller("Campaign Status", "Submitted to CM");
 	        objectlistpage.clickButton("Save");
 	        objectlistpage.assertFieldLabelAndValue("Campaign Status", "Complete");
 	        objectlistpage.assertFieldLabelAndValue("Fulfillment Progress", "CIOC complete");
@@ -298,8 +279,9 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        // 🔹 Global Search Opportunity (161–168)
 	        // -------------------------
-//	        objectlistpage.navigateToTab("Opportunities");
-//	        objectlistpage.globalSearchAndOpenRecord("Opportunity", opportunityName);
+	        
+	        String opportunityId =  objectlistpage.extractRecordIdFromUrl();
+			objectlistpage.NavigateToRecord("Opportunity", opportunityId);
 
 	        // -------------------------
 	        // 🔹 Closed Won Negative Test (169–171)
@@ -313,24 +295,24 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        objectlistpage.scrollToBottom();
 	        objectlistpage.clickEditByFieldLabel("ROI");
-//	        objectlistpage.moveLastAvailableOptionToChosen("ROI");
-//	        String NewROI = objectlistpage.getLastChosenValue("ROI");
+	        objectlistpage.formValueFiller("ROI", "Multi-screen Impact");
 	        objectlistpage.clickButton("Save");
 
 	        driver.navigate().refresh();
-//	        objectlistpage.assertFieldLabelContains("ROI", NewROI);
+	        objectlistpage.assertFieldLabelAndValue("ROI", "Multi-screen Impact;Instant Impact");
 
 	        // -------------------------
 	        // 🔹 Final Validations in List View (185–192)
 	        // -------------------------
 	        String CloseDate = objectlistpage.getRecordViewValue("Close Date");
 
-//	        objectlistpage.navigateToList("Opportunities");
-//	        objectlistpage.searchList("Opportunities", opportunityName);
-//	        objectlistpage.assertTableCellValue("Opportunity Name", opportunityName);
-//	        objectlistpage.assertTableCellValue("Stage", "Order Fulfillment");
-//	        objectlistpage.assertTableCellValue("Closed Date", CloseDate);
-//	        objectlistpage.assertTableCellValue("Owner", ownerName);
+			lightningloginpage.applauncher("Opportunity");
+			objectlistpage.enterSearchText(opportunityName);
+			objectlistpage.pressEnterKeyAfterSearch();
+	        objectlistpage.assertTableCellValue("Opportunity Name", opportunityName);
+	        objectlistpage.assertTableCellValue("Stage", "Order Fulfillment");
+	        objectlistpage.assertTableCellValue("Closed Date", CloseDate);
+	        objectlistpage.assertTableCellValue("Owner", HTTPClientWrapper.getUserNameByRole("AgencySeller"));
 
 		} catch (Exception e) {
 

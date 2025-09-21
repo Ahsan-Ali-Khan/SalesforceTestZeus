@@ -143,6 +143,38 @@ public class PageBase { // This file contains common framework level methods for
 		}
 		return element.isDisplayed();
 	}
+	
+	public void waitForSFPagetoLoad() {
+		// performance and stability.
+		hardwait(3);
+		try {
+			WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(50));
+
+			ExpectedCondition<Boolean> jsLoad = d -> ((JavascriptExecutor) d)
+					.executeScript("return document.readyState").toString().equals("complete");
+
+			ExpectedCondition<Boolean> aurascriptLoad = d -> {
+				String WAIT_FOR_AURA_SCRIPT = "return (typeof $A !== 'undefined' && $A && $A.metricsService.getCurrentPageTransaction().config.context.ept > 0)";
+				String EPT_COUNTER_SCRIPT = "return ($A.metricsService.getCurrentPageTransaction().config.context.ept)";
+				Boolean result = (Boolean) ((JavascriptExecutor) d).executeScript(WAIT_FOR_AURA_SCRIPT);
+				if (Boolean.TRUE.equals(result)) {
+					System.out.println("Experienced Page Load time: "
+							+ ((JavascriptExecutor) d).executeScript(EPT_COUNTER_SCRIPT));
+					return true;
+				}
+				return false;
+			};
+
+			if (wait1.until(jsLoad) && wait1.until(aurascriptLoad)) {
+				System.out.println("Page load complete");
+			} else {
+				Thread.sleep(2000);
+			}
+		} catch (Exception e) {
+			System.out.println("Exception in waitForSFPagetoLoad: " + e.getMessage());
+			hardwait(5);
+		}
+	}
 
 	public void waitAndClick(WebElement element) {
 		// waiting for web element before clicking
@@ -170,6 +202,7 @@ public class PageBase { // This file contains common framework level methods for
 
 	public void refreshPage() {
 		driver.navigate().refresh();
+		waitForSFPagetoLoad();
 		System.out.println("Page Refreshed");
 	}
 
@@ -550,8 +583,8 @@ public class PageBase { // This file contains common framework level methods for
 	}
 
 	public void enterValue(WebElement element, String value) {
-		waitAndforceClickElement(element);
-		element.click();
+		SFClick(element);
+		hardwait(2);
 		if (element.getTagName().equals("input")) {
 			element.clear();
 		}
@@ -951,8 +984,12 @@ public class PageBase { // This file contains common framework level methods for
 		}
 	}
 
-	public void hardwait(int timeinsec) throws InterruptedException {
-		Thread.sleep(timeinsec * 1000);
+	public void hardwait(int timeinsec){
+		try {
+			Thread.sleep(timeinsec * 1000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+		}
 	}
 
 	public static String readJsonFile(String jsonfilename, String path_key) {
