@@ -205,7 +205,7 @@ public class HTTPClientWrapper {
 
 	        HttpResponse response = HttpClientBuilder.create().build().execute(httpGet);
 	        String responseBody = EntityUtils.toString(response.getEntity());
-
+	        System.out.println("Response Body : " + responseBody);
 	        JSONObject json = new JSONObject(responseBody);
 	        JSONArray records = json.getJSONArray("records");
 
@@ -252,8 +252,9 @@ public class HTTPClientWrapper {
 	            throw new RuntimeException("❌ Failed to query User for role=" + roleName
 	                    + " (" + queryStatus + "): " + body);
 	        }
-
-	        JSONObject queryJson = new JSONObject(EntityUtils.toString(queryResponse.getEntity()));
+	        String queryResponseBody = EntityUtils.toString(queryResponse.getEntity());
+	        System.out.println("Response Body : " + queryResponseBody);
+	        JSONObject queryJson = new JSONObject(queryResponseBody);
 	        JSONArray records = queryJson.getJSONArray("records");
 
 	        if (records.length() == 0) {

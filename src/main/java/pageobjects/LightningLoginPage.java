@@ -88,5 +88,6 @@ public class LightningLoginPage extends utils.SFPageBase {
 
         openHomepage(cleanurl + "?eptVisible=1");
         waitForSFPagetoLoad();
+        setCurrentObject(appname);
     }
 }

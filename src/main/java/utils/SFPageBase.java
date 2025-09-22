@@ -51,7 +51,7 @@ public class SFPageBase extends PageBase {
     private static final int DEFAULT_WAIT_SECONDS = 30;
     private String currentObjectApiName;
     private static final Pattern LIGHTNING_RECORD_PATTERN = Pattern.compile("/lightning/r/([^/]+)/[A-Za-z0-9]{15,18}(/|$)");
-    private static final Pattern LIGHTNING_OBJECT_PATTERN = Pattern.compile("/lightning/o/([^/]+)/list");
+    private static final Pattern LIGHTNING_OBJECT_PATTERN = Pattern.compile("/lightning/o/([^/]+)/(?:list|new)");
     private static final Pattern ONE_APP_SOBJECT_PATTERN = Pattern.compile("/sObject/([A-Za-z0-9]{15,18})");
     private static final Pattern ID_EXTRACT_PATTERN = Pattern.compile("([A-Za-z0-9]{15,18})");
 
@@ -709,7 +709,7 @@ public class SFPageBase extends PageBase {
 	
 	private String getFieldXPath(String label) throws Exception {
 		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
-	    String type = fields.get(label).dataType;
+		String type = fields.get(label).dataType;
 	    if (type == null) {
 	        throw new Exception("Label not found: " + label);
 	    }
@@ -1042,8 +1042,11 @@ public class SFPageBase extends PageBase {
 				+ fieldLabel + "']//following-sibling::div[1]//div[contains(@class,'recordTypeName')]/span | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-address | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-url | //div[contains(@class,'active')]//p[normalize-space()='"
-				+ fieldLabel + "']/following-sibling::p[1]//records-hoverable-link//a//span | //div[contains(@class,'active')]//p[normalize-space()='"
-				+ fieldLabel + "']/following-sibling::p[1]//lightning-formatted-text)[last()]";
+				+ fieldLabel + "']/following-sibling::p[1]//records-hoverable-link//a//span | //div[contains(@class,'active')]//div[normalize-space()='" 
+				+ fieldLabel + "']/following-sibling::div[1]//records-hoverable-link//a//span | //div[contains(@class,'active')]//p[normalize-space()='"
+				+ fieldLabel + "']/following-sibling::p[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']/following-sibling::div[1]//lightning-formatted-name | //div[contains(@class,'active')]//div[normalize-space()='"
+				+ fieldLabel + "']/following-sibling::div[1]//lightning-formatted-email)[last()]";
 		WebElement we = driver.findElement(By.xpath(genericXpathLocator));
 		String actualValue = we.getText();
 		Assert.assertEquals(actualValue, expectedValue, "Field '" + fieldLabel + "' value mismatch.");

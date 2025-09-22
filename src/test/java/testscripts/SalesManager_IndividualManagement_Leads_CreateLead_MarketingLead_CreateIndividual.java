@@ -5,10 +5,6 @@ import java.util.Map;
 import java.util.Random;
 
 import org.json.JSONObject;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import base.BaseTest;
@@ -35,12 +31,13 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 	@Test
 	public void editAccount() throws Exception {
 		String randomLetters = randomLetters(5);
-	    String FirstName = "WebomatesFirst" + new Random().nextInt(10000);
-	    String LastName = "WebomatesFirst" + new Random().nextInt(10000);
-		String accountName = "Webomates " + randomLetters +" "+ new Random().nextInt(1000000);
-		String leadName = "Webomates " + randomLetters +" "+ new Random().nextInt(1000000);
-	    String street = new Random().nextInt(10000) + " High Ridge Rd";
-	    String email = FirstName + "@"+ randomLetters + new Random().nextInt(10000) +".com";
+	    String MarketingLeadFirstName = "Webomates" + randomLetters + new Random().nextInt(1000000);
+	    String MarketingLeadLastName = "Webomates" + randomLetters + new Random().nextInt(1000000);
+	    String MarketingLeadEmail = MarketingLeadFirstName + "@"+ randomLetters + new Random().nextInt(10000) +".com";
+		String accountName = "Webomates" + randomLetters +" "+ new Random().nextInt(1000000);
+		String SalesLeadFirstName = "Webomates" + randomLetters + new Random().nextInt(1000000);
+	    String SalesLeadLastName = "Webomates" + randomLetters + new Random().nextInt(1000000);
+	    String SalesLeadEmail = SalesLeadFirstName + "@"+ randomLetters + new Random().nextInt(10000) +".com";
 	    String website = "www." + randomLetters + new Random().nextInt(10000) + ".com";
 	    int firstDigit = new Random().nextInt(9) + 1;
 	    StringBuilder phoneNumberBuilder = new StringBuilder(String.valueOf(firstDigit));
@@ -49,43 +46,15 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
         }
 
         String phone = phoneNumberBuilder.toString();
-        String phone2 = phoneNumberBuilder.toString();
-        String camId = randomWithRange( "32", 1000, 9999);
 
 	    HTTPClientWrapper client = new HTTPClientWrapper();
 	    Map<String, Object> leadData = new HashMap<>();
 
-	 // Additional fields from the provided steps
-
-	    // Fields under CreateLeadRequestSchema.fields
-//	    leadData.put("Salutation", "Mr.");                 // CONSTANT_BLANK
-//	    leadData.put("MiddleName", "");                // CONSTANT_BLANK
-//	    leadData.put("Title", "POC");
-//	    leadData.put("MobilePhone", phone);            // ${phone}
-//	    leadData.put("Preferred_Contact_Method__c", "All");
-//	    leadData.put("Industry", "ALCO29828");
-//	    leadData.put("Website", website);              // ${website}
-//	    leadData.put("Description", "Webomates Lead");
-//	    leadData.put("Country", "United States");
-//	    leadData.put("GeocodeAccuracy", "");          // CONSTANT_BLANK
-//	    leadData.put("Latitude", "");                 // CONSTANT_BLANK
-//	    leadData.put("Longitude", "");                // CONSTANT_BLANK
-//	    leadData.put("StateCode", "CT");
-//	    leadData.put("Street", street);                // ${street}
-//	    leadData.put("NYI__c", false);                // FALSE
-//	    leadData.put("Budget__c", 10000);
-//	    leadData.put("Flight_Start_Date__c", "2025-12-31");
-//	    leadData.put("Flight_End_Date__c", "2026-12-31");
-//	    leadData.put("Contact_Record_Type__c", "Advertiser");
-//	    leadData.put("LeadSource", "General Sales Source");
-//	    leadData.put("Status", "New");
-//	    leadData.put("Lead_Status__c", "New Lead");
-//	    leadData.put("Date_of_Subscribe_Request__c", "2025-03-28");
-
 	    
-	    leadData.put("FirstName", FirstName); 
-	    leadData.put("LastName", LastName); 
-	    leadData.put("Email", email);                  // ${email}
+	    leadData.put("Salutation", "Mr."); 
+	    leadData.put("FirstName", MarketingLeadFirstName); 
+	    leadData.put("LastName", MarketingLeadLastName); 
+	    leadData.put("Email", MarketingLeadEmail);                  // ${email}
 	    leadData.put("Phone", phone);                  // ${phone}
 	    leadData.put("Company", accountName);         // ${accountName}
 	    leadData.put("Website", website);              // ${website}
@@ -105,78 +74,53 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 		lightningloginpage.loginWithRole("SalesManager");
 		lightningloginpage.applauncher("Lead");
 		
-		String recordID = objectlistpage.getRecordIdByUiLabelAndValue("Lead", "Lead Name", "WebomatesFirst7055");
-		objectlistpage.NavigateToRecord("Lead", recordID);
-		objectlistpage.uiApiParser(recordID);
+		objectlistpage.clickButton("New");
 		
-			
-			objectlistpage.clickNew();
+		objectlistpage.formValueFiller("First Name", SalesLeadFirstName);
+		objectlistpage.formValueFiller("Last Name", SalesLeadLastName);
+		objectlistpage.formValueFiller("Email", SalesLeadEmail);
+		objectlistpage.formValueFiller("Business Legal Name", accountName);
 		
-			//	objectlistpage.formValueFiller("First Name", "webo0409");
-			//	objectlistpage.formValueFiller("Last Name", "webo0409");
-			//	objectlistpage.formValueFiller("Email", "webo@gmail.com");
-			//	objectlistpage.formValueFiller("Business Name", "webomates1241");
-			
-//			driver.findElement(By.xpath("//div[contains(@class, 'active')]//input[@name='firstName']")).sendKeys(firstName);
-//			driver.findElement(By.xpath("//div[contains(@class, 'active')]//input[@name='lastName']")).sendKeys(lastName);
-//			driver.findElement(By.xpath("//div[contains(@class, 'active')]//input[@name='Email']")).sendKeys(email);
-//			driver.findElement(By.xpath("//input[@name='Company']")).sendKeys(business);
-			
-			objectlistpage.clickSave();
+		objectlistpage.clickButton("Save");
 
-			//objectlistpage.assertFormValue("Lead Name", "webo0409 webo0409");
-			//objectlistpage.assertFormValue("Email", "webo@gmail.com");
-			//objectlistpage.marketingTab("Indivisual", "Individual");
-			//objectlistpage.assertEquals("Lead Name", "webo0409 webo0409");
-			
-			Thread.sleep(10000);
-			
-//			Assert.assertEquals(driver.findElement(By.xpath("(//div[@data-target-selection-name='sfdc:RecordField.Lead.Name']//lightning-formatted-name)[last()]")).getText(), fullName);
-			Assert.assertEquals(driver.findElement(By.xpath("//div[@data-target-selection-name='sfdc:RecordField.Lead.Email']//a")).getText(), email);
-			
-			objectlistpage.clickMarketingTab();
-			
-			Thread.sleep(10000);
-				//not working 
-			//Assert.assertEquals(driver.findElement(By.xpath("//span[text()='Individual']/ancestor::dt/following-sibling::dd/div/span//a |//span[text()='Individual']/parent::div/following-sibling::div/span//a")).getText(), fullName);
-			
-			objectlistpage.clickDetailsTab();
-			objectlistpage.clickEditByFieldLabel("Phone");
+		String LeadName = SalesLeadFirstName+ " " + SalesLeadLastName;
+		objectlistpage.assertFieldLabelAndValue("Name", LeadName);
+		objectlistpage.assertFieldLabelAndValue("Email", SalesLeadEmail.toLowerCase());
+		
+		objectlistpage.clickTab("Marketing");
+		objectlistpage.assertFieldLabelAndValue("Individual", LeadName);
+		
+		objectlistpage.clickTab("Details");
+		
+		objectlistpage.clickEditByFieldLabel("Phone");
+		
+		objectlistpage.formValueFiller("Phone", "abc");
 
-			//objectlistpage.formValueFiller("Phone", "ABC");
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).sendKeys("ABC");
-			
-			//objectlistpage.clickSalutationDropdown();
-			objectlistpage.clickSave();
-			
-			objectlistpage.assertFormValueSnags("Phone", "Phone");
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).clear();
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).sendKeys("%%");
-			
-			//objectlistpage.clickSalutationDropdown();
-			objectlistpage.clickSave();
-			
-			objectlistpage.assertFormValueSnags("Phone", "Phone");
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).sendKeys("9424312");
-			
-			objectlistpage.clickSave();
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).clear();
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).sendKeys("9424312579");
-			
-			driver.findElement(By.xpath("//input[@name='Phone']")).clear();
-			
-			objectlistpage.clickSave();
-			//objectlistpage.assertError("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");
-			//objectlistpage.assertSnag("Phone", "Phone");
-			
-			//objectlistpage.();
-			//objectlistpage.clickSave();
+		
+		objectlistpage.clickButton("Save");
+		
+		objectlistpage.assertFormErrorValueByLabel("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");
+		objectlistpage.assertFormValueSnags("Phone", "Phone");
+
+		objectlistpage.clickEditByFieldLabel("Phone");
+		
+		objectlistpage.formValueFiller("Phone", "$%&/");
+		objectlistpage.clickButton("Save");
+		
+		objectlistpage.assertFormErrorValueByLabel("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");
+		objectlistpage.assertFormValueSnags("Phone", "Phone");
+		
+		objectlistpage.clickEditByFieldLabel("Phone");
+		
+		objectlistpage.formValueFiller("Phone", "708451215");
+		objectlistpage.clickButton("Save");
+		
+		objectlistpage.assertFormErrorValueByLabel("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");
+		objectlistpage.assertFormValueSnags("Phone", "Phone");
+		
+		objectlistpage.assertFieldLabelAndValue("Phone", "(708) 451-2150");
+		
+		objectlistpage.clickTab("Marketing");
 			
 //--------------------------------------------------------
 		} catch (Exception e) {
