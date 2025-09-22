@@ -24,6 +24,7 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
 
@@ -354,6 +355,7 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// Fill form field by label and value
 	public void formValueFiller(String label, String targetValue) throws Exception {
+		label = label.replace("&", "&amp;");
 		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
 		
 		// === 1. Click edit if inline-edit button exists ===
@@ -734,7 +736,9 @@ public class SFPageBase extends PageBase {
 	                    // Generic inline edit / modals
 	                    "//span[normalize-space(text())='" + label + "']/ancestor::div[contains(@class,'uiInputSelect')]//a[@role='combobox']";
 	        case "MultiPicklist":
-	            return "//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='" + label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')]";
+	        	return 
+	        			"//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='" + label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')] | " +
+	        	        "//div[contains(@class,'active')]//flowruntime-picklist-input-lwc[.//span[normalize-space(text())='" + label + "']]//select";
 	        case "Boolean":
 	        	return "//label[normalize-space()='"+label+"']";
 	        default:
@@ -764,21 +768,38 @@ public class SFPageBase extends PageBase {
 	}
 
 	// Filling MultiPicklist
+	// Filling MultiPicklist (works for both old and new versions)
 	private void fillMultiPicklist(String label, String targetValue) throws Exception {
 	    WebElement container = getFieldElementByLabel(label);
-	    WebElement availableList = container.findElement(By.xpath(".//ul[@data-source-list]"));
-	    WebElement moveButton = container.findElement(By.xpath(".//button[@title='Move to Chosen']"));
 	    String values = targetValue.replaceAll("[\\[\\]]", ""); // Remove brackets
 	    String[] items = values.split(",\\s*");
 
-	    for (String item : items) {
-	        WebElement option = findOptionInListWithScroll(availableList, item);
-	        scrollIntoView(option);
-	        option.click();
-		    waitAndClick(moveButton);
-	        hardwait(3);
+	    // Try to find "Move to Chosen" button (old-style picklist)
+	    WebElement moveButton = null;
+	    WebElement availableList = null;
+	    try {
+	        availableList = container.findElement(By.xpath(".//ul[@data-source-list]"));
+	        moveButton = container.findElement(By.xpath(".//button[@title='Move to Chosen']"));
+	    } catch (NoSuchElementException e) {
+	        // Available Chosen style picklist not found, likely new native multi-select
 	    }
-        hardwait(3);
+
+	    if (availableList != null && moveButton != null) {
+	        for (String item : items) {
+	            WebElement option = findOptionInListWithScroll(availableList, item);
+	            scrollIntoView(option);
+	            option.click();
+	            waitAndClick(moveButton);
+	            hardwait(1);
+	        }
+	    } else {
+	        // New-style multi-select logic
+	    	if ("Select".equalsIgnoreCase(container.getTagName())) {
+	            Select dropDown = new Select(container);
+	    		dropDown.selectByVisibleText(targetValue);
+	    	}
+	    }
+	    hardwait(2);
 	}
 
 	// Clearing MultiPicklist
