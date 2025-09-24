@@ -37,6 +37,13 @@ public class ObjectListPage extends utils.SFPageBase {
 	@FindBy(xpath = "//li[@title='Details' and @class='slds-tabs_default__item slds-is-active'] | //a[@id='detailTab__item']")
 	private WebElement clickDetailsTab;
 	
+	@FindBy(xpath = "//img[@alt='User']")
+	private WebElement userProfileImage;
+	
+	@FindBy(xpath = "//lightning-icon[@icon-name='utility:notification']")
+	private WebElement notificationIcon;
+	
+	
 	public ObjectListPage(WebDriver webDriver) {
 		super(webDriver);
 		PageFactory.initElements(driver, this);// Creates instance for all web elements
@@ -71,6 +78,21 @@ public class ObjectListPage extends utils.SFPageBase {
 
 	}
 	
+	public void clickUserProfileImage() throws InterruptedException {
+
+		SFClick(userProfileImage);
+
+		Thread.sleep(3000);
+
+	}
+	
+	public void clickNotificationIcon() throws InterruptedException {
+		
+		SFClick(notificationIcon);
+		
+		Thread.sleep(3000);
+		
+	}
 	
 
 	public void clickSave() throws InterruptedException {

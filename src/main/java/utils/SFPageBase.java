@@ -22,6 +22,7 @@ import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
@@ -514,25 +515,52 @@ public class SFPageBase extends PageBase {
 		public void clickQuickAction(String actionLabel) throws Exception {
 		    clickQuickAction(requireCurrentObject(), actionLabel);
 		}
+		
+		
+		
+		public void clickChatterPostShowActionButton(String actorName) {
+			 // Locate the chatter post for the given actorName
+		    String postXpath = getChatterPost(actorName);
+		    WebElement actionButton = driver.findElement(
+		        By.xpath(postXpath + "//div[contains(@class,'cuf-feedItemActionTrigger')]//button")
+		    );
+		    clickButton(actionButton);
+		}
+		
+		
 
 	    // ✅ Click button by text
 	    public void clickButton(String buttonText) {
-	        String xpath = "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[@role='button' and normalize-space()='" + buttonText + "'])[last()]";
-	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	        WebElement button = waitForElementToBeClickable(By.xpath(getButtonLocator(buttonText)), DEFAULT_WAIT_SECONDS);
+	        clickButton(button);
+	    }
+	    
+	    public void clickButton(WebElement button) {
 	        SFClick(button);
 	        hardwait(2);
 	        updateCurrentObjectAuto();
 	    }
 	    
 	    public void clickTab(String tabName) {
-			String xpath = "//one-app-nav-bar-item-root//a[@title='" 
-					+ tabName + "'] | //div[contains(@class,'active')]//li[contains(@class,'slds-tabs_default__item') and @title='"
-					+ tabName + "']";
-	        WebElement button = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
-	        SFClick(button);
+	        WebElement tab = waitForElementToBeClickable(By.xpath(getTabLocator(tabName)), DEFAULT_WAIT_SECONDS);
+	        SFClick(tab);
 	        updateCurrentObjectAuto();
 	    }
 	    
+	    public String getTabLocator(String tabName) {
+			return "//one-app-nav-bar-item-root//a[@title='" 
+					+ tabName + "'] | //div[contains(@class,'active')]//li[contains(@class,'slds-tabs_default__item') and @title='"
+					+ tabName + "']";
+	    }
+	    
+	    public String getButtonLocator(String buttonText) {
+			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'])[last()]";
+	    }
+	    
+	    public String getChatterPost(String actorName) {
+			return "//article[.//a[@title='" + actorName + "']]";
+	    }
+		   
 	    public void enterSearchText(String textTobeSearched) throws InterruptedException {
 	    	WebElement SearchTextElement = findSearchTextElement();
 	        enterValue(SearchTextElement, textTobeSearched);
@@ -819,7 +847,84 @@ public class SFPageBase extends PageBase {
 	        Thread.sleep(1000);
 	    }
 	}
+	
+	public void enterValueUsingScript(String ElementName, String value) {
+		WebElement element = null;
+		switch(ElementName){
+			case "ChatterComment" : element = driver.findElement(By.xpath("//div[@role='textbox']"));
+				break;
+			default : 
+				throw new IllegalArgumentException(ElementName + "is not handled.");
+		}
+		enterValueUsingScript(element, value);
+	}
 
+	// Overloaded method without extraData (Post only)
+	public void performChatterAction(String actionType, String message) {
+	    performChatterAction(actionType, message, null);
+	}
+
+	// Main method with optional extraData
+	public void performChatterAction(String actionType, String message, String extraData) {
+	    // 1. Click the Chatter tab
+	    WebElement chatterTab = driver.findElement(By.xpath(getTabLocator("Chatter")));
+	    clickButton(chatterTab);
+
+	    // 2. Select the sub-tab (Post / Poll / Log a Call)
+	    WebElement actionTab = driver.findElement(By.xpath(getButtonLocator(actionType)));
+	    clickButton(actionTab);
+
+	    // 3. Handle Post
+	    if (actionType.equalsIgnoreCase("Post")) {
+	        WebElement postBox = driver.findElement(By.xpath("//div[contains(@class,'ql-editor') and @role='textbox']"));
+	        Actions actions = new Actions(driver);
+	        actions.moveToElement(postBox)
+	               .click()
+	               .sendKeys(message)
+	               .pause(500)
+	               .sendKeys(Keys.BACK_SPACE)   // small hack to trigger change event
+	               .pause(500)
+	               .sendKeys(Keys.ENTER)
+	               .perform();
+
+	        clickButton("Share");
+	    }
+
+	    // 4. Handle Poll
+	    else if (actionType.equalsIgnoreCase("Poll")) {
+	        WebElement questionBox = driver.findElement(By.xpath("//label[normalize-space()='Question']/following-sibling::textarea"));
+	        enterValueTextArea(questionBox, message);
+
+	        if (extraData != null) {
+	            // Split extraData by comma → "Option1,Option2,Option3"
+	            String[] options = extraData.split(",");
+	            for (int i = 0; i < options.length; i++) {
+	                WebElement optionBox = driver.findElement(
+	                    By.xpath("//label[normalize-space()='Choice " + (i + 1) + "']/following-sibling::input"));
+	                optionBox.sendKeys(options[i].trim());
+	            }
+	        }
+
+	        clickButton("Ask");
+	    }
+
+	    // 5. Handle Log a Call
+	    else if (actionType.equalsIgnoreCase("Log a Call")) {
+	        WebElement subjectBox = driver.findElement(By.xpath("//input[@id=string(//label[text()='Subject']/@for)]"));
+	        subjectBox.sendKeys(extraData != null ? extraData : "Default Subject");
+
+	        WebElement commentsBox = driver.findElement(By.xpath("//label[normalize-space()='Comments']/following::textarea[1]"));
+	        commentsBox.sendKeys(message);
+
+	        clickButton("Save");
+	    }
+
+	    else {
+	        throw new IllegalArgumentException("Unsupported Chatter action: " + actionType);
+	    }
+	}
+
+	
 	// Scroll and find option in list
 	private WebElement findOptionInListWithScroll(WebElement listElement, String optionText) throws Exception {
 	    List<WebElement> options = listElement.findElements(By.xpath(".//div[@role='option']"));
@@ -909,6 +1014,26 @@ public class SFPageBase extends PageBase {
 	    }
 	}
 	
+	public void assertTabEnabled(String tabName) {
+        WebElement tab = findElementWithWait(By.xpath(getTabLocator(tabName)), DEFAULT_WAIT_SECONDS);
+        Assert.assertTrue(tab.isEnabled(), tabName + " Tab should be enabled");
+    }
+	
+	public void assertTabDisabled(String tabName) {
+        WebElement tab = findElementWithWait(By.xpath(getTabLocator(tabName)), DEFAULT_WAIT_SECONDS);
+        Assert.assertTrue(!tab.isEnabled(), tabName + " Tab should be disabled");
+    }
+	
+	public void assertButtonEnabled(String buttonName) {
+		WebElement button = findElementWithWait(By.xpath(getButtonLocator(buttonName)), DEFAULT_WAIT_SECONDS);
+        Assert.assertTrue(button.isEnabled(), buttonName + " Button should be enabled");
+    }
+	
+	public void assertButtonDisabled(String buttonName) {
+        WebElement button = findElementWithWait(By.xpath(getButtonLocator(buttonName)), DEFAULT_WAIT_SECONDS);
+        Assert.assertTrue(!button.isEnabled(), buttonName + " Button should be disabled");
+    }
+	
 	
 	public void assertTableCellValue(String columnName, String expectedValue) {
 	    // Step 1: Find all headers
@@ -952,6 +1077,47 @@ public class SFPageBase extends PageBase {
 	    	WebElement section = scrollToSection(expectedSectionName);
 	    	String actualSectionName = section.getText();
 	    	Assert.assertEquals(actualSectionName, expectedSectionName);
+	    }
+	}
+	
+	public void assertShowActionDropdownEquals(String expectedOptionsCsv) {
+	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+	    WebElement dropdownList = wait.until(ExpectedConditions.visibilityOfElementLocated(
+	        By.xpath("//div[contains(@class,'cuf-feedItemActionTrigger')]//div[contains(@class,'slds-dropdown') and contains(@class,'slds-dropdown_right')]//ul")
+	    ));
+
+	    List<WebElement> optionElements = dropdownList.findElements(By.xpath(".//li/a/span"));
+	    List<String> actualOptions = optionElements.stream().map(WebElement::getText).map(String::trim).collect(Collectors.toList());
+	    String cleaned = expectedOptionsCsv.replaceAll("[\\[\\]]", "");
+	    List<String> expectedOptions = Arrays.stream(cleaned.split(",")).map(String::trim).collect(Collectors.toList());
+
+	    Assert.assertEquals(actualOptions, expectedOptions,
+	            "Given Dropdown options " + expectedOptions + " did not match " + actualOptions);
+	}
+	
+	public void assertShowActionDropdownContains(String expectedOptionsCsv) {
+	    // Wait for dropdown list to be visible
+	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+	    WebElement dropdownList = wait.until(ExpectedConditions.visibilityOfElementLocated(
+	        By.xpath("//div[contains(@class,'cuf-feedItemActionTrigger')]//div[contains(@class,'slds-dropdown') and contains(@class,'slds-dropdown_right')]//ul")
+	    ));
+
+	    List<WebElement> optionElements = dropdownList.findElements(By.xpath(".//li/a/span"));
+	    List<String> actualOptions = optionElements.stream()
+	                                               .map(WebElement::getText)
+	                                               .map(String::trim)
+	                                               .collect(Collectors.toList());
+
+	    // Convert expected string "[Option1,Option2,...]" → List
+	    String cleaned = expectedOptionsCsv.replaceAll("[\\[\\]]", "");
+	    List<String> expectedOptions = Arrays.stream(cleaned.split(","))
+	                                         .map(String::trim)
+	                                         .collect(Collectors.toList());
+
+	    // Assert that each expected option is present in actual options
+	    for (String expected : expectedOptions) {
+	        Assert.assertTrue(actualOptions.contains(expected),
+	                "Dropdown '" + actualOptions + "' does not contain expected option: " + expected);
 	    }
 	}
 	
@@ -1057,6 +1223,11 @@ public class SFPageBase extends PageBase {
 	}
 
 	public void assertFieldLabelAndValue(String fieldLabel, String expectedValue) throws Exception {
+		String actualValue = getValueByFieldLabel(fieldLabel);
+		Assert.assertEquals(actualValue, expectedValue, "Field '" + fieldLabel + "' value mismatch.");
+	}
+	
+	public String getValueByFieldLabel(String fieldLabel) throws Exception {
 		String genericXpathLocator = "(//div[normalize-space()='"
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-primitive-input-checkbox |//div[normalize-space()='" 
 				+ fieldLabel + "']//following-sibling::div[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
@@ -1067,10 +1238,10 @@ public class SFPageBase extends PageBase {
 				+ fieldLabel + "']/following-sibling::div[1]//records-hoverable-link//a//span | //div[contains(@class,'active')]//p[normalize-space()='"
 				+ fieldLabel + "']/following-sibling::p[1]//lightning-formatted-text | //div[contains(@class,'active')]//div[normalize-space()='"
 				+ fieldLabel + "']/following-sibling::div[1]//lightning-formatted-name | //div[contains(@class,'active')]//div[normalize-space()='"
-				+ fieldLabel + "']/following-sibling::div[1]//lightning-formatted-email)[last()]";
+				+ fieldLabel + "']/following-sibling::div[1]//lightning-formatted-email | //div[contains(@class,'active')]//records-entity-label[normalize-space()='"
+				+ fieldLabel + "']/following::lightning-formatted-text[@slot='primaryField'])[last()]";
 		WebElement we = driver.findElement(By.xpath(genericXpathLocator));
-		String actualValue = we.getText();
-		Assert.assertEquals(actualValue, expectedValue, "Field '" + fieldLabel + "' value mismatch.");
+		return we.getText();
 	}
 
 	public void assertFieldLabelAndMap(String fieldLabel, int timeoutInSeconds) throws Exception {
@@ -1093,10 +1264,23 @@ public class SFPageBase extends PageBase {
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 			WebElement toastMessage = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(xpath)));
 			String actualMessage = toastMessage.getText();
-			Assert.assertTrue(actualMessage.contains(actualMessage), "Toast Message should contains " + expectedMessage + " but found " + actualMessage);
+			Assert.assertTrue(actualMessage.contains(actualMessage), "Toast Message should contains " + expectedMessage + " and found " + actualMessage);
 			hardwait(10);
 		} catch (Exception e) {
 			Assert.fail("Toast message did not appear: " + expectedMessage);
+		}
+	}
+	
+	public void assertChatterPostValueContains(String expectedMessage) {
+		String postValueLocator = "[data-type='TextPost']";
+		try {
+			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+			WebElement postValueElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(postValueLocator)));
+			String actualMessage = postValueElement.getText();
+			Assert.assertTrue(actualMessage.contains(actualMessage), "Post value should contains " + expectedMessage + " and found " + actualMessage);
+			hardwait(10);
+		} catch (Exception e) {
+			Assert.fail("Post value did not appear");
 		}
 	}
 
@@ -1409,16 +1593,24 @@ public class SFPageBase extends PageBase {
 	
 	// ✅ Validate modal header text
     public void assertModalHeader(String expectedText) {
-        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//h2";
+        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//h2 |  //div[contains(@class,'active')]//h3[contains(@class,'slds-show notification-text-title')]";
         WebElement header = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
         if (!header.getText().trim().equals(expectedText)) {
             throw new AssertionError("Header mismatch! Expected: " + expectedText + ", Found: " + header.getText());
         }
     }
+    
+    public void assertTextVisible(String expectedText) {
+        String xpath = "//*[normalize-space()='"+expectedText+"']";
+        WebElement element = findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+        if (!element.getText().trim().equals(expectedText)) {
+            throw new AssertionError("Header mismatch! Expected: " + expectedText + ", Found: " + element.getText());
+        }
+    }
 
     // ✅ Validate modal message text (exact match)
     public void assertModalMessage(String expectedText) {
-        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//lightning-formatted-rich-text";
+        String xpath = "//div[contains(@class,'active')]//div[@id='wrapper-body']//lightning-formatted-rich-text | //div[contains(@class,'active')]//span[contains(@class,'notification-text')]";
         WebElement msg = waitForElementToBeClickable(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
         if (!msg.getText().contains(expectedText)) {
             throw new AssertionError("Message mismatch! Expected to contain: " + expectedText + ", Found: " + msg.getText());
@@ -1452,6 +1644,10 @@ public class SFPageBase extends PageBase {
         WebElement tab = driver.findElement(By.xpath("//a[contains(@class,'tabHeader') and contains(normalize-space(),'" + tabName + "')]"));
         boolean isSelected = tab.getAttribute("aria-current").equalsIgnoreCase("true")?true:false;
         Assert.assertTrue(isSelected, "Tab '" + tabName + "' should be selected");
+    }
+    
+    public void assertNotVisible(WebElement element) {
+        Assert.assertTrue(element.isDisplayed());
     }
 	
 	// ============================================================
