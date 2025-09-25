@@ -23,8 +23,7 @@ public class CaseCreationViaUI extends BaseTest {
 		lightningloginpage.login(SFUserId, SFPassword);
 		// Navigating directly to Case list page
 		lightningloginpage.applauncher("Case");
-		objectlistpage.clickShowMoreActions();
-		objectlistpage.clickNew();
+		objectlistpage.clickButton("New");
 
 		// We fetch all the labels and datatype from UI API here for a certain record id
 		String recordid = "5005g00000iogzGAAQ";
@@ -34,7 +33,7 @@ public class CaseCreationViaUI extends BaseTest {
 		objectlistpage.formValueFiller("Case Origin",
 				"Phone");
 
-		objectlistpage.clickSave();
+		objectlistpage.clickButton("Save");
 		System.out.println("Thank you :) ");
 
 	}

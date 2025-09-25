@@ -299,6 +299,12 @@ public class SFPageBase extends PageBase {
 		SFClick(driver.findElement(By.xpath(xpath)));
 	}
 	
+	public void clickChangeOwnerByFieldLabel(String fieldLabel) throws InterruptedException {
+		Thread.sleep(5000);
+		String xpath = getChangeOwnerButtonXPath(fieldLabel);
+		SFClick(driver.findElement(By.xpath(xpath)));
+	}
+	
 	/**
 	 * Resolve a Quick Action button (WebElement) by its label.
 	 * Uses Salesforce Quick Actions API (cached in HTTPClientWrapper).
@@ -536,9 +542,13 @@ public class SFPageBase extends PageBase {
 	    }
 	    
 	    public void clickButton(WebElement button) {
+	    	String buttonText = button.getText();
+	    	boolean logoutflag = buttonText.equalsIgnoreCase("Log Out");
 	        SFClick(button);
 	        hardwait(2);
+	        if(!logoutflag) {
 	        updateCurrentObjectAuto();
+	        }
 	    }
 	    
 	    public void clickTab(String tabName) {
@@ -554,7 +564,7 @@ public class SFPageBase extends PageBase {
 	    }
 	    
 	    public String getButtonLocator(String buttonText) {
-			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'])[last()]";
+			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[@aria-describedby=string(//span[normalize-space()='" + buttonText + "']//@id)]//lightning-icon | //div[contains(@class,'active')]//button//span[normalize-space()='"+ buttonText +"'] | //div[@aria-describedby=string(//span[@role='tooltip' and normalize-space()='" + buttonText + "']/@id)]/ancestor::button)[last()]";
 	    }
 	    
 	    public String getChatterPost(String actorName) {
@@ -777,8 +787,12 @@ public class SFPageBase extends PageBase {
 	private String getEditButtonXPath(String label){
 		return String.format("(//div[contains(@class,'active')]//button[contains(@title,'Edit %s')])[last()]", label);
 	}
+	
+	private String getChangeOwnerButtonXPath(String label){
+		return "//div[contains(@class,'active')]//div[normalize-space()='"+label+"']/following-sibling::div[1]//button[@title='Change Owner'] | //p[normalize-space()='"+label+"']/following-sibling::p//button[@title='Change Owner']";
+	}
 
-	private WebElement findElementWithWait(By locator, int waitInSeconds) {
+	protected WebElement findElementWithWait(By locator, int waitInSeconds) {
 	    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(waitInSeconds));
 	    return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
 	}
@@ -1035,39 +1049,36 @@ public class SFPageBase extends PageBase {
     }
 	
 	
-	public void assertTableCellValue(String columnName, String expectedValue) {
-	    // Step 1: Find all headers
-	    List<WebElement> headers = driver.findElements(
-	        By.xpath("//table[contains(@class,'slds-table')]//thead//th")
-	    );
+	// Default method → assumes row 1
+	public void assertTableCellValueEquals(String columnName, String expectedValue) {
+		assertTableCellValueEquals(1, columnName, expectedValue);
+	}
 
-	    int columnIndex = -1;
-	    for (int i = 0; i < headers.size(); i++) {
-	        String headerText = headers.get(i).getText().trim();
-	        if (headerText.equalsIgnoreCase(columnName)) {
-	            columnIndex = i + 1; // XPath is 1-based
-	            break;
-	        }
-	    }
-
-	    if (columnIndex == -1) {
-	        throw new RuntimeException("Column '" + columnName + "' not found in table headers.");
-	    }
-
-	    // Step 2: Build dynamic locator for the first row's cell in that column
-	    String cellXpath = String.format(
-	        "//table[contains(@class,'slds-table')]//tbody/tr[1]/*[%d]",
-	        columnIndex
-	    );
+	public void assertTableCellValueEquals(int rowNumber, String columnName, String expectedValue) {
+	    String cellXpath = 
+	        "//div[contains(@class,'active')]//table[contains(@class,'slds-table')]//tbody/tr["+rowNumber+"]/*[@data-label='"+columnName+"']";
 
 	    WebElement cellElement = driver.findElement(By.xpath(cellXpath));
 	    String actualValue = cellElement.getText().trim();
+	    
+	    Assert.assertEquals(actualValue, expectedValue, "row " + rowNumber + 
+	            " for column '" + columnName +
+	            "': expected [" + expectedValue + "] but found [" + actualValue + "]");
+	}
+	
+	public void assertTableCellValueNotEquals(String columnName, String unexpectedValue) {
+		assertTableCellValueNotEquals(1, columnName, unexpectedValue);
+	}
 
-	    // Step 3: Assert values
-	    if (!actualValue.equals(expectedValue)) {
-	        throw new AssertionError("Mismatch for column '" + columnName +
-	                "': expected [" + expectedValue + "] but found [" + actualValue + "]");
-	    }
+	public void assertTableCellValueNotEquals(int rowNumber, String columnName, String unexpectedValue) {
+		String cellXpath = "//div[contains(@class,'active')]//table[contains(@class,'slds-table')]//tbody/tr["
+				+ rowNumber + "]/*[@data-label='" + columnName + "']";
+
+		WebElement cellElement = driver.findElement(By.xpath(cellXpath));
+		String actualValue = cellElement.getText().trim();
+
+		Assert.assertNotEquals(actualValue, unexpectedValue, "row " + rowNumber + " for column '" + columnName
+				+ "': not expected [" + unexpectedValue + "] and found [" + actualValue + "]");
 	}
 	
 	public void assertSectionHeaders(String listOfSections) {

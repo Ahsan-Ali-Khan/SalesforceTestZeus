@@ -6,6 +6,7 @@ import java.util.Map;
 import base.BaseTest;
 
 import org.openqa.selenium.Alert;
+import org.openqa.selenium.By;
 import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -19,17 +20,7 @@ import utils.EnvironmentConfigDto;
 
 public class LightningLoginPage extends utils.SFPageBase {
 
-    @FindBy(id = "username")
-    @CacheLookup
-    private WebElement username;
-
-    @FindBy(id = "password")
-    @CacheLookup
-    private WebElement password;
-
-    @FindBy(id = "Login")
-    @CacheLookup
-    private WebElement login_button;
+   
 
     // TODO: Add correct xpath for error messages if needed
     @FindBy(xpath = "//*[contains(@class,'error')]")
@@ -49,17 +40,16 @@ public class LightningLoginPage extends utils.SFPageBase {
      * Perform login into Salesforce Lightning.
      */
     public void login(String userid, String passwordtext) throws InterruptedException {
-        // Use Selenium 4 wait instead of raw sleep
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(40));
-        wait.until(ExpectedConditions.visibilityOf(username));
-
+    	WebElement username = driver.findElement(By.xpath("//input[@id='username']"));
+    	WebElement password = driver.findElement(By.xpath("//input[@id='password']"));
+    	WebElement loginButton = driver.findElement(By.xpath("//input[@id='Login']"));
         username.clear();
         username.sendKeys(userid);
 
         password.clear();
         password.sendKeys(passwordtext);
 
-        safeClick(login_button);
+        safeClick(loginButton);
 
         try {
             // Handle alert popup if appears

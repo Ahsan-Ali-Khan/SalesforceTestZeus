@@ -23,9 +23,8 @@ public class AccountCreationViaUI extends BaseTest {
 		lightningloginpage.login(SFUserId, SFPassword);
 		// Navigating directly to Account app
 		lightningloginpage.applauncher("Account");
-		objectlistpage.clickShowMoreActions();
 
-		objectlistpage.clickNew();
+		objectlistpage.clickButton("New");
 
 		// We fetch all the labels and datatype from UI API here for a certain record id
 		String recordid = "0015g00001IdwmWAAR";
@@ -40,7 +39,7 @@ public class AccountCreationViaUI extends BaseTest {
 		objectlistpage.formValueFiller("SIC Code",
 				utils.SFPageBase.readJsonFile("accountdata", "$.['SIC Code']"));
 
-		objectlistpage.clickSave();
+		objectlistpage.clickButton("Save");
 		System.out.println("Thank you :) ");
 
 	}
