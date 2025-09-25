@@ -31,12 +31,12 @@ public class AccountCreationViaUI extends BaseTest {
 		objectlistpage.uiApiParser(recordid);
 
 		// Form data can be passed directly on the new sObject creation screen
-		objectlistpage.formValueFiller("Account Name",
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Account Name",
 				"AccountCreatedOn : " + objectlistpage.getCurrentDateTimeStamp());
-//		objectlistpage.formValueFiller("Upsell Opportunity", "Maybe");
+//		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Upsell Opportunity", "Maybe");
 
 		// Or form data can be read from a json file as below
-		objectlistpage.formValueFiller("SIC Code",
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("SIC Code",
 				utils.SFPageBase.readJsonFile("accountdata", "$.['SIC Code']"));
 
 		objectlistpage.clickButton("Save");

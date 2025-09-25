@@ -30,7 +30,7 @@ public class CaseCreationViaUI extends BaseTest {
 		objectlistpage.uiApiParser(recordid);
 
 		// Form data can be passed directly on the new sObject creation screen
-		objectlistpage.formValueFiller("Case Origin",
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Case Origin",
 				"Phone");
 
 		objectlistpage.clickButton("Save");

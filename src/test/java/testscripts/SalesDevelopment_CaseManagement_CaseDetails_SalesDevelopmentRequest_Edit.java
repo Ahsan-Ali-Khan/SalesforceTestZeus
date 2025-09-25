@@ -131,9 +131,9 @@ public class SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest
 		    // Create Opportunity
 		    objectlistpage.clickQuickAction("New Opportunity");
 		    objectlistpage.setCurrentObject("Opportunity");
-			objectlistpage.formValueFiller("Opportunity Name", opportunityName);
-			objectlistpage.formValueFiller("Amount", "2000");
-			objectlistpage.formValueFiller("Close Date", closeDate);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
 			objectlistpage.clickButton("Next");
 			objectlistpage.clickButton("Finish");
 
@@ -144,9 +144,9 @@ public class SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest
 		    objectlistpage.assertTextVisible("SALES DEVELOPMENT REQUEST");
 //		    objectlistpage.assertTextVisible("Only ONE Sales Development and ONE Media Planning Request can be open at a time. You can create a new request once the prior request is completed");
 		    objectlistpage.setCurrentObject("Case");
-		    objectlistpage.formValueFiller("Requested Due Date", requestedDueDate);
-		    objectlistpage.formValueFiller("Client Challenges & Needs", clientChallengesAndNeeds);
-		    objectlistpage.formValueFiller("Deliverables Needed", "1:1 Collateral");
+		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Requested Due Date", requestedDueDate);
+		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Client Challenges & Needs", clientChallengesAndNeeds);
+		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Deliverables Needed", "1:1 Collateral");
 		    objectlistpage.clickButton("Next");
 		    
 		    objectlistpage.assertTextVisible("Request Type: Sales Development");

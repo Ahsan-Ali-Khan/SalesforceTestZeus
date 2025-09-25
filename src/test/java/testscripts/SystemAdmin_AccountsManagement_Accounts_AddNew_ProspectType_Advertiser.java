@@ -116,7 +116,7 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			objectlistpage.NavigateToRecord("Account", recordID);
 
 			objectlistpage.clickEditByFieldLabel("Status");
-			objectlistpage.formValueFiller("Status", "Active");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Status", "Active");
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Prospect Type", "Advertiser");
 			objectlistpage.assertFieldLabelAndValue("Account Record Type", "Prospect");
@@ -136,20 +136,20 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFormErrorValueByLabel("Account Name", "Complete this field");
 			objectlistpage.assertFormValueSnags("Account Name", "Account Name");
-			objectlistpage.formValueFiller("Account Name", accountName2);
-			objectlistpage.formValueFiller("Industry", "--None--");
-			objectlistpage.formValueFiller("Phone", phone2);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Account Name", accountName2);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Industry", "--None--");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Phone", phone2);
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Account Name", accountName2);
 			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "");
 			objectlistpage.clickEditByFieldLabel("Account Name");
-			objectlistpage.formValueFiller("Advertiser Type", "[Local]");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Advertiser Type", "[Local]");
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Advertiser Type", "Local");
 			objectlistpage.assertFieldLabelAndValue("Website", website);
 			objectlistpage.assertFieldLabelAndValue("Industry", "");
 			objectlistpage.clickEditByFieldLabel("Status");
-			objectlistpage.formValueFiller("Status", "New");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Status", "New");
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFieldLabelAndValue("Status", "New");
 

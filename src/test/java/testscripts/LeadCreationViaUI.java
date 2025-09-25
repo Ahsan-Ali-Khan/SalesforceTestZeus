@@ -28,16 +28,16 @@ public class LeadCreationViaUI extends BaseTest {
 
 //		
 //		// Form data can be passed directly on the new sObject creation screen
-//		objectlistpage.formValueFiller("Salutation",
+//		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Salutation",
 //				"Mr.");
-//		objectlistpage.formValueFiller("First Name",
+//		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("First Name",
 //				"Webo");
-//        objectlistpage.formValueFiller("Email",
+//        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Email",
 //				"Test12322@gmail.com");
-//        objectlistpage.formValueFiller("Business Legal Name",
+//        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Business Legal Name",
 //        		"Test Business Legal Name 128");
 //
-//        objectlistpage.formValueFiller("Last Name",
+//        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Last Name",
 //        		"Test");
 //
 //		objectlistpage.clickSave();

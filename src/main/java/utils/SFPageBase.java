@@ -361,7 +361,7 @@ public class SFPageBase extends PageBase {
 	// --- Form Handling Section ---
 	// ============================================================
 	// Fill form field by label and value
-	public void formValueFiller(String label, String targetValue) throws Exception {
+	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue) throws Exception {
 		label = label.replace("&", "&amp;");
 		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
 		
@@ -429,7 +429,7 @@ public class SFPageBase extends PageBase {
 	}
 
 	// Overloaded version with custom wait time
-	public void formValueFiller(String label, String targetValue, int waitInSeconds) throws Exception {
+	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue, int waitInSeconds) throws Exception {
 	    Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
 	    WebElement fieldElement = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
 	    scrollIntoView(fieldElement);
@@ -564,7 +564,7 @@ public class SFPageBase extends PageBase {
 	    }
 	    
 	    public String getButtonLocator(String buttonText) {
-			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[@aria-describedby=string(//span[normalize-space()='" + buttonText + "']//@id)]//lightning-icon | //div[contains(@class,'active')]//button//span[normalize-space()='"+ buttonText +"'] | //div[@aria-describedby=string(//span[@role='tooltip' and normalize-space()='" + buttonText + "']/@id)]/ancestor::button)[last()]";
+			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[@aria-describedby=string(//span[normalize-space()='" + buttonText + "']//@id)]//lightning-icon | //div[contains(@class,'active')]//button//span[normalize-space()='"+ buttonText +"'] | //div[@aria-describedby=string(//span[@role='tooltip' and normalize-space()='" + buttonText + "']/@id)]/ancestor::button | //lightning-base-combobox-item//span[@title='" + buttonText + "'])[last()]";
 	    }
 	    
 	    public String getChatterPost(String actorName) {
@@ -1555,7 +1555,7 @@ public class SFPageBase extends PageBase {
 	    }
 	}
 
-	public String extractRecordIdFromUrl() {
+	public String getRecordIdFromUrl() {
 
     	String url = driver.getCurrentUrl();
 	    try {
@@ -1569,7 +1569,7 @@ public class SFPageBase extends PageBase {
 	}
 	
 	public boolean waitUntilRecordUnlocked(int maxWaitSeconds) {
-		String recordId = extractRecordIdFromUrl();
+		String recordId = getRecordIdFromUrl();
 	    int waited = 0;
 	    try {
 	        while (waited < maxWaitSeconds) {
@@ -1611,11 +1611,32 @@ public class SFPageBase extends PageBase {
         }
     }
     
+ // ✅ Visible check
     public void assertTextVisible(String expectedText) {
-        String xpath = "//*[normalize-space()='"+expectedText+"']";
-        WebElement element = findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
-        if (!element.getText().trim().equals(expectedText)) {
-            throw new AssertionError("Header mismatch! Expected: " + expectedText + ", Found: " + element.getText());
+        String xpath = String.format("//*[normalize-space()='%s']", expectedText);
+        try {
+            WebElement element = findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+            Assert.assertTrue(
+                element.getText().trim().equals(expectedText),
+                "Header mismatch! Expected: " + expectedText + ", Found: " + element.getText()
+            );
+        } catch (TimeoutException e) {
+            Assert.fail("Expected text '" + expectedText + "' to be visible, but it was not found within timeout.");
+        }
+    }
+
+    // ✅ Not visible check
+    public void assertTextNotVisible(String expectedText) {
+        String xpath = String.format("//*[normalize-space()='%s']", expectedText);
+        try {
+            WebElement element = findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+            Assert.assertTrue(
+                !element.isDisplayed(),
+                "Text '" + expectedText + "' was expected NOT to be visible, but it is displayed."
+            );
+        } catch (TimeoutException e) {
+            // Element not found → passes as "not visible"
+            Assert.assertTrue(true, "Text '" + expectedText + "' is not present (as expected).");
         }
     }
 

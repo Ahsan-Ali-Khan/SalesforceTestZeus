@@ -76,10 +76,10 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 		
 		objectlistpage.clickButton("New");
 		
-		objectlistpage.formValueFiller("First Name", SalesLeadFirstName);
-		objectlistpage.formValueFiller("Last Name", SalesLeadLastName);
-		objectlistpage.formValueFiller("Email", SalesLeadEmail);
-		objectlistpage.formValueFiller("Business Legal Name", accountName);
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("First Name", SalesLeadFirstName);
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Last Name", SalesLeadLastName);
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Email", SalesLeadEmail);
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Business Legal Name", accountName);
 		
 		objectlistpage.clickButton("Save");
 
@@ -94,7 +94,7 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 		
 		objectlistpage.clickEditByFieldLabel("Phone");
 		
-		objectlistpage.formValueFiller("Phone", "abc");
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Phone", "abc");
 
 		
 		objectlistpage.clickButton("Save");
@@ -104,7 +104,7 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 
 		objectlistpage.clickEditByFieldLabel("Phone");
 		
-		objectlistpage.formValueFiller("Phone", "$%&/");
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Phone", "$%&/");
 		objectlistpage.clickButton("Save");
 		
 		objectlistpage.assertFormErrorValueByLabel("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");
@@ -112,7 +112,7 @@ public class SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_Cr
 		
 		objectlistpage.clickEditByFieldLabel("Phone");
 		
-		objectlistpage.formValueFiller("Phone", "708451215");
+		objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Phone", "708451215");
 		objectlistpage.clickButton("Save");
 		
 		objectlistpage.assertFormErrorValueByLabel("Phone", "Enter 10 digit Phone number without any special characters. The field will be auto-formatted to US format (xxx)-xxx-xxx once saved");

@@ -124,11 +124,11 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			objectlistpage.assertFieldLabelAndValue("Account Record Type", "Advertiser");
 			objectlistpage.clickQuickAction("New Opportunity");
 			objectlistpage.setCurrentObject("Opportunity");
-			objectlistpage.formValueFiller("Opportunity Name", opportunityName);
-			objectlistpage.formValueFiller("Amount", "2000");
-			objectlistpage.formValueFiller("Close Date", closeDate);
-			objectlistpage.formValueFiller("Flight Start Date", flightStartDate);
-			objectlistpage.formValueFiller("Flight End Date", flightEndDate);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Flight Start Date", flightStartDate);
+			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Flight End Date", flightEndDate);
 			objectlistpage.clickButton("Next");
 			objectlistpage.assertModalMessage("Opportunity " + opportunityName + " created successfully !!");
 			objectlistpage.clickButton("Finish");
@@ -161,14 +161,14 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        objectlistpage.enterSearchText("Webomates"); 
 	        objectlistpage.selectOption(1); 
 	        objectlistpage.setCurrentObject("OpportunityContactRole");
-	        objectlistpage.formValueFiller("Role","Influencer");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Role","Influencer");
 	        objectlistpage.clickButton("Save");
 	        objectlistpage.clickTab("Details");
 	        objectlistpage.clickEditByFieldLabel("ROI");
 	        objectlistpage.assertAvailablePicklistOptionsEquals("ROI","[Instant Impact,Multi-screen Impact]");
-	        objectlistpage.formValueFiller("ROI","[Instant Impact]");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("ROI","[Instant Impact]");
 	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
-	        objectlistpage.formValueFiller("Pacesetting","true");// <-- issue
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Pacesetting","true");// <-- issue
 	        objectlistpage.clickButton("Save");
 	        objectlistpage.assertFieldLabelAndValue("ROI", "Instant Impact");
 	        objectlistpage.assertFieldLabelAndValue("Flight Start Date", flightStartDate);
@@ -227,25 +227,25 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 
 	        objectlistpage.clickEditByFieldLabel("Revenue Type");
-	        objectlistpage.formValueFiller("Revenue Type", "Ampersand 360 Passport");
-	        objectlistpage.formValueFiller("Campaign Status", "In Progress");
-	        objectlistpage.formValueFiller("Billing Type", "Broadcast");
-	        objectlistpage.formValueFiller("Co-Op", "");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Revenue Type", "Ampersand 360 Passport");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Campaign Status", "In Progress");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Billing Type", "Broadcast");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Co-Op", "");
 	        objectlistpage.setCurrentObject("Opportunity"); // to be deleted step
 	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 	        objectlistpage.assertPicklistOptionsEquals("Makegood Approval", "[Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight]");
-	        objectlistpage.formValueFiller("Makegood Approval", "Not Allowed");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Makegood Approval", "Not Allowed");
 
 	        objectlistpage.assertPicklistOptionsEquals("Makegood Parameters - Linear",
 	                "[Flexible,Same networks ordered/flexible daypart,Same networks ordered/same dayparts,Same Market/zones,Same Demo/Audience]");
-	        objectlistpage.formValueFiller("Makegood Parameters - Linear", "Flexible");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Makegood Parameters - Linear", "Flexible");
 
 	        objectlistpage.assertAvailablePicklistOptionsEquals("Makegood Parameters - Digital","[Flexible,Same Product Ordered,Same Market/zones,Same Demo/Audience]");
-	        objectlistpage.formValueFiller("Makegood Parameters - Digital", "[Flexible,Same Product Ordered]");
-	        objectlistpage.formValueFiller("Makegood Currency", "By spot");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Makegood Parameters - Digital", "[Flexible,Same Product Ordered]");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Makegood Currency", "By spot");
 
 	        objectlistpage.assertPicklistOptionsEquals("Won Reason","[Competitive Pricing,Strong Relationship,Unique Value Proposition,Strong ROI Projections,Product Differentiation]");
-	        objectlistpage.formValueFiller("Won Reason", "Competitive Pricing");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Won Reason", "Competitive Pricing");
 	        
 	        
 	        objectlistpage.clickButton("Save");
@@ -261,7 +261,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        objectlistpage.clickEditByFieldLabel("Campaign Status");
 	        objectlistpage.assertPicklistOptionsEquals("Campaign Status", "OneConnect – Submitted to CM,Submitted to CM,Revised to CM,Pending – Action Required,In Progress,Complete]");
-	        objectlistpage.formValueFiller("Campaign Status", "Revised to CM");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Campaign Status", "Revised to CM");
 	        objectlistpage.clickButton("Save");
 
 //			//------- working till here - verified -----
@@ -269,7 +269,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
 	        objectlistpage.assertPicklistOptionsEquals("Fulfillment Progress","[Ready for CIOC,Assigned to CIOC,CIOC rejected back to CM,CIOC complete]");
-	        objectlistpage.formValueFiller("Fulfillment Progress", "Ready for CIOC");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Fulfillment Progress", "Ready for CIOC");
 	        objectlistpage.clickButton("Save");
 
 	        
@@ -278,8 +278,8 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 
 	        objectlistpage.refreshPage();
 	        objectlistpage.clickEditByFieldLabel("Fulfillment Progress");
-	        objectlistpage.formValueFiller("Fulfillment Progress", "CIOC complete");
-	        objectlistpage.formValueFiller("Campaign Status", "Submitted to CM");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Fulfillment Progress", "CIOC complete");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Campaign Status", "Submitted to CM");
 	        objectlistpage.clickButton("Save");
 	        objectlistpage.assertFieldLabelAndValue("Campaign Status", "Complete");
 	        objectlistpage.assertFieldLabelAndValue("Fulfillment Progress", "CIOC complete");
@@ -288,7 +288,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // 🔹 Global Search Opportunity (161–168)
 	        // -------------------------
 	        
-	        String opportunityId =  objectlistpage.extractRecordIdFromUrl();
+	        String opportunityId =  objectlistpage.getRecordIdFromUrl();
 			objectlistpage.NavigateToRecord("Opportunity", opportunityId);
 
 	        // -------------------------
@@ -303,7 +303,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        // -------------------------
 	        objectlistpage.scrollToBottom();
 	        objectlistpage.clickEditByFieldLabel("ROI");
-	        objectlistpage.formValueFiller("ROI", "Multi-screen Impact");
+	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("ROI", "Multi-screen Impact");
 	        objectlistpage.clickButton("Save");
 
 	        driver.navigate().refresh();
@@ -317,10 +317,10 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			lightningloginpage.applauncher("Opportunity");
 			objectlistpage.enterSearchText(opportunityName);
 			objectlistpage.pressEnterKeyAfterSearch();
-	        objectlistpage.assertTableCellValue("Opportunity Name", opportunityName);
-	        objectlistpage.assertTableCellValue("Stage", "Order Fulfillment");
-	        objectlistpage.assertTableCellValue("Closed Date", CloseDate);
-	        objectlistpage.assertTableCellValue("Owner", HTTPClientWrapper.getUserNameByRole("AgencySeller"));
+	        objectlistpage.assertTableCellValueEquals("Opportunity Name", opportunityName);
+	        objectlistpage.assertTableCellValueEquals("Stage", "Order Fulfillment");
+	        objectlistpage.assertTableCellValueEquals("Closed Date", CloseDate);
+	        objectlistpage.assertTableCellValueEquals("Owner", HTTPClientWrapper.getUserNameByRole("AgencySeller"));
 
 		} catch (Exception e) {
 
