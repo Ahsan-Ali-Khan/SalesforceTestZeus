@@ -52,6 +52,7 @@ public class SFPageBase extends PageBase {
 	private String extractedObjectName;
     private static final int DEFAULT_WAIT_SECONDS = 30;
     private String currentObjectApiName;
+    private static String currentObjectType = "SObject"; // default
     private static final Pattern LIGHTNING_RECORD_PATTERN = Pattern.compile("/lightning/r/([^/]+)/[A-Za-z0-9]{15,18}(/|$)");
     private static final Pattern LIGHTNING_OBJECT_PATTERN = Pattern.compile("/lightning/o/([^/]+)/(?:list|new)");
     private static final Pattern ONE_APP_SOBJECT_PATTERN = Pattern.compile("/sObject/([A-Za-z0-9]{15,18})");
@@ -363,7 +364,7 @@ public class SFPageBase extends PageBase {
 	// Fill form field by label and value
 	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue) throws Exception {
 		label = label.replace("&", "&amp;");
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
 		
 		// === 1. Click edit if inline-edit button exists ===
 	    try {
@@ -430,7 +431,7 @@ public class SFPageBase extends PageBase {
 
 	// Overloaded version with custom wait time
 	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue, int waitInSeconds) throws Exception {
-	    Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
 	    WebElement fieldElement = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
 	    scrollIntoView(fieldElement);
 	    String type = fields.get(label).dataType;
@@ -472,7 +473,7 @@ public class SFPageBase extends PageBase {
 
 	// Clear input by label
 	public void formValueClear(String label) throws Exception {
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
 	    WebElement fieldElement = getFieldElementByLabel(label);
 	    scrollIntoView(fieldElement);
 	    String type = fields.get(label).dataType;
@@ -508,14 +509,40 @@ public class SFPageBase extends PageBase {
 	 * Resolves the API name via Salesforce Quick Actions API to avoid hardcoding.
 	 */
 	// click wrapper that updates current object automatically after navigation
-		public void clickQuickAction(String objectApiName, String actionLabel) throws Exception {
-		    WebElement btn = getQuickActionElement(objectApiName, actionLabel);
-		    SFClick(btn);
-		    // Quick actions often navigate (to create/edit target). Wait & update.
-		    waitForSFPagetoLoad();
-		    updateCurrentObjectAuto();
-		    System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
-		}
+	public void clickQuickAction(String objectApiName, String actionLabel) throws Exception {
+	    // 1. Get the API name for the action (you already do this elsewhere)
+	    Map<String, String> actions = HTTPClientWrapper.getQuickActions(objectApiName);
+	    if (!actions.containsKey(actionLabel)) {
+	        throw new IllegalArgumentException("Action not found: " + actionLabel);
+	    }
+	    String apiName = actions.get(actionLabel); // e.g. Create_Data_Request or Opportunity.Create_Data_Request
+
+	    // 2. Describe the quick action to learn if it's a Flow
+	    String describePath = "/sobjects/" + objectApiName + "/quickActions/" + apiName + "/describe";
+	    JSONObject actionDescribe = (JSONObject) HTTPClientWrapper.runGetRequest(describePath);
+
+	    // 3. If it's a Flow, set current object to flowDevName and set type
+	    String type = actionDescribe.optString("type", "SObject");
+	    if ("Flow".equalsIgnoreCase(type)) {
+	        String flowDevName = actionDescribe.optString("flowDevName");
+	        // set current object to flow identifier
+	        setCurrentObject(flowDevName);
+	        setCurrentObjectType("Flow");
+	    } else {
+	        // normal sObject quick action
+	        setCurrentObject(objectApiName);
+	        setCurrentObjectType("SObject");
+	    }
+
+	    // 4. Click the quick action button as before
+	    WebElement btn = getQuickActionElement(objectApiName, actionLabel);
+	    SFClick(btn);
+
+	    // 5. Wait / update UI state as you already do
+	    waitForSFPagetoLoad();
+	    updateCurrentObjectAuto();
+	    System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
+	}
 
 		// overload uses currentObject implicitly
 		public void clickQuickAction(String actionLabel) throws Exception {
@@ -748,7 +775,7 @@ public class SFPageBase extends PageBase {
 	}
 	
 	private String getFieldXPath(String label) throws Exception {
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject());
+		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
 		String type = fields.get(label).dataType;
 	    if (type == null) {
 	        throw new Exception("Label not found: " + label);
@@ -993,6 +1020,35 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// --- Assertions Section ---
 	// ============================================================
+	public void assertRequiredFieldLabels(String expectedCsv) {
+	    // Convert CSV string to List<String>
+	    List<String> expectedLabels = Arrays.stream(expectedCsv.split(","))
+	            .map(String::trim)
+	            .collect(Collectors.toList());
+
+	    // XPath: find labels that contain <abbr class='slds-required'>
+	    List<WebElement> requiredLabelElements = driver.findElements(
+	        By.xpath("//*[contains(@class,'slds-required')]/parent::*")
+	    );
+
+	    // Extract actual required field labels
+	    List<String> actualLabels = requiredLabelElements.stream()
+	            .map(e -> e.getText().trim())
+	            .collect(Collectors.toList());
+
+	    // Debug log
+	    System.out.println("Expected required fields: " + expectedLabels);
+	    System.out.println("Actual required fields:   " + actualLabels);
+
+	    // Assert all expected are present
+	    for (String label : expectedLabels) {
+	        Assert.assertTrue(
+	            actualLabels.contains(label),
+	            "Missing required field: " + label + ". Found: " + actualLabels
+	        );
+	    }
+	}
+	
 	public void assertPicklistOptionsEquals(String label, String expectedValues) {
 	    // Step 1: Locate combobox container by label text
 	    WebElement container = driver.findElement(By.xpath(
@@ -1724,6 +1780,15 @@ public class SFPageBase extends PageBase {
 	        throw new IllegalStateException("Current object not set. Call setCurrentObject(...) or ensure a navigation method ran.");
 	    }
 	    return obj;
+	}
+	
+	
+	public static void setCurrentObjectType(String t) {
+		currentObjectType = t;
+	}
+
+	public static String getCurrentObjectType() {
+		return currentObjectType;
 	}
 	
 	// ============================================================
