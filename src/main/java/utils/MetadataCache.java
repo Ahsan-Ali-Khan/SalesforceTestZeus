@@ -2,11 +2,16 @@ package utils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 //Use ConcurrentHashMap for thread safety
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import com.jayway.jsonpath.JsonPath;
 
 public class MetadataCache {
 
@@ -16,17 +21,21 @@ public class MetadataCache {
 
     // ---------- Public API ----------
 
-    // Old method (backward compatible)
+ // Old method (backward compatible, default type = SObject)
     public static ConcurrentHashMap<String, FieldInfo> getAllFields(String objectName) throws Exception {
         return getAllFields(objectName, "SObject");
     }
 
-    // New overload with type support
+    // Type-aware method (single object)
     public static ConcurrentHashMap<String, FieldInfo> getAllFields(String name, String type) throws Exception {
-        if (objectFieldCache.containsKey(name)) return objectFieldCache.get(name);
+        if (objectFieldCache.containsKey(name)) {
+            return objectFieldCache.get(name);
+        }
 
         synchronized (MetadataCache.class) {
-            if (objectFieldCache.containsKey(name)) return objectFieldCache.get(name);
+            if (objectFieldCache.containsKey(name)) {
+                return objectFieldCache.get(name);
+            }
 
             ConcurrentHashMap<String, FieldInfo> fieldsMap;
             if ("Flow".equalsIgnoreCase(type)) {
@@ -38,6 +47,23 @@ public class MetadataCache {
             objectFieldCache.put(name, fieldsMap);
             return fieldsMap;
         }
+    }
+
+    // NEW: Merge fields from both SObject and Flow
+    public static Map<String, FieldInfo> getAllFieldsMerged(String sObjectName, String flowName) throws Exception {
+        Map<String, FieldInfo> allFields = new HashMap<>();
+
+        if (sObjectName != null && !sObjectName.isEmpty()) {
+            Map<String, FieldInfo> sObjectFields = fetchObjectFields(sObjectName);
+            allFields.putAll(sObjectFields);
+        }
+
+        if (flowName != null && !flowName.isEmpty()) {
+            Map<String, FieldInfo> flowFields = fetchFlowFields(flowName);
+            allFields.putAll(flowFields);
+        }
+
+        return allFields;
     }
 
     // ---------- Helpers ----------
@@ -112,26 +138,42 @@ public class MetadataCache {
 
         JSONObject flow = flowRecords.getJSONObject(0);
         JSONObject metadata = flow.optJSONObject("Metadata");
-        JSONArray variables = metadata != null ? metadata.optJSONArray("variables") : null;
+        if (metadata == null) return fieldsMap;
 
-        if (variables != null) {
-            for (int i = 0; i < variables.length(); i++) {
-                JSONObject v = variables.getJSONObject(i);
-                String apiName = v.optString("name");
-                if (apiName == null || apiName.isEmpty()) continue;
+        // Step 3: Use JSONPath to extract fields with name, fieldType, and fieldText
+        List<Object> fields = JsonPath.read(metadata.toString(), "$..fields[?(@.name && @.fieldType && @.fieldText)]");
 
-                String label = v.optString("fieldText", apiName);
-                String dataType = v.optString("dataType", "String");
+        for (Object obj : fields) {
+            if (!(obj instanceof Map)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fieldMap = (Map<String, Object>) obj;
 
-                FieldInfo fi = new FieldInfo(apiName, dataType);
+            String apiName = safeString(fieldMap.get("name"));
+            if (apiName == null) continue;
 
-                fieldsMap.put(apiName, fi);
-                fieldsMap.put(label, fi);
-                fieldsMap.put(flowDevName + " " + label, fi);
-            }
+            String label = safeString(fieldMap.get("fieldText"), apiName);
+            String dataType = safeString(fieldMap.get("fieldType"), "String");
+
+            FieldInfo fi = new FieldInfo(apiName, dataType);
+            putFieldInMap(fieldsMap, apiName, label, flowDevName, fi);
         }
 
         return fieldsMap;
+    }
+
+    // Helper methods
+    private static String safeString(Object obj) {
+        return obj != null ? obj.toString() : null;
+    }
+
+    private static String safeString(Object obj, String defaultValue) {
+        return obj != null ? obj.toString() : defaultValue;
+    }
+
+    private static void putFieldInMap(Map<String, FieldInfo> map, String apiName, String label, String flowDevName, FieldInfo fi) {
+        map.put(apiName, fi);
+        map.put(label, fi);
+        map.put(flowDevName + " " + label, fi);
     }
 
     // ---------- Inner class ----------
@@ -144,5 +186,10 @@ public class MetadataCache {
             this.apiName = apiName;
             this.dataType = dataType;
         }
+    }
+    
+    public class QuickActionContext {
+        public static String currentSObject;   // e.g. "Opportunity"
+        public static String currentFlow;      // e.g. "Screen_Flow_Create_Opportunity_From_Account"
     }
 }

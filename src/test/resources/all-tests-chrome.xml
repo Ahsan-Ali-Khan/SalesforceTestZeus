@@ -8,7 +8,8 @@
            <!-- <class name="testscripts.AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_ClosedWon" /> -->
            <!-- <class name="testscripts.SalesManager_IndividualManagement_Leads_CreateLead_MarketingLead_CreateIndividual" /> -->
            <!-- <class name="testscripts.EnterpriseSeller_CaseManagement_CaseDetails_Chatter_Access" /> -->
-           <class name="testscripts.SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest_Edit" />
+           <!-- <class name="testscripts.SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest_Edit" /> -->
+           <class name="testscripts.AgencySeller_CaseManagement_Cases_ListViews_MySubmittedRequests" />
            
         </classes>
     </test>

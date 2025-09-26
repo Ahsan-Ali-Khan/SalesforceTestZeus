@@ -23,7 +23,6 @@ import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -32,6 +31,7 @@ import org.testng.Assert;
 import com.jayway.jsonpath.JsonPath;
 
 import base.BaseTest;
+import utils.MetadataCache.QuickActionContext;
 
 /**
  * @author Robin
@@ -316,7 +316,7 @@ public class SFPageBase extends PageBase {
 	 */
 	// existing method that accepts object explicitly (keep it)
 	public WebElement getQuickActionElement(String objectApiName, String actionLabel) throws Exception {
-	    Map<String, String> actions = HTTPClientWrapper.getQuickActions(objectApiName);
+	    Map<String, Object> actions = HTTPClientWrapper.getQuickActions(objectApiName);
 
 	    if (!actions.containsKey(actionLabel)) {
 	        throw new IllegalArgumentException("❌ Action not found: " + actionLabel +
@@ -324,8 +324,15 @@ public class SFPageBase extends PageBase {
 	                ". Available: " + actions.keySet());
 	    }
 
-	    String apiName = actions.get(actionLabel); // e.g. Account.New_Opportunity
-
+	    Object value = actions.get(actionLabel);
+	    String apiName = null;
+	    if (value instanceof JSONObject) {
+		    JSONObject apiNameObj = (JSONObject) value;
+		    apiName = apiNameObj.getString("apiName");
+		} else {
+		    apiName = value.toString();
+		}
+	    
 	    String xpath = String.format(
 	        "//div[contains(@class,'active')]//runtime_platform_actions-action-renderer[@apiname='%s']//button",
 	        apiName
@@ -343,9 +350,26 @@ public class SFPageBase extends PageBase {
 
 
 	// Get field element by label
-	public WebElement getFieldElementByLabel(String label) throws Exception {
-	    String xpath = getFieldXPath(label);
+	public WebElement getFieldElementByLabelAndType(String label, String type) throws Exception {
+	    String xpath = getFieldXPath(label,type);
 	    return findElementWithWait(By.xpath(xpath), DEFAULT_WAIT_SECONDS);
+	}
+	
+	private MetadataCache.FieldInfo getFieldInfoUsingMetadata(String label) throws Exception {
+	    label = label.replace("&", "&amp;");
+	    Map<String, MetadataCache.FieldInfo> allFields =
+	            MetadataCache.getAllFieldsMerged(QuickActionContext.currentSObject, QuickActionContext.currentFlow);
+
+	    MetadataCache.FieldInfo fieldInfo = allFields.get(label);
+	    if (fieldInfo == null) {
+	        throw new Exception("Field not found: " + label
+	                + " in SObject: " + QuickActionContext.currentSObject
+	                + " or Flow: " + QuickActionContext.currentFlow);
+	    }
+	    if (fieldInfo.dataType == null) {
+	        throw new Exception("DataType not found for: " + label);
+	    }
+	    return fieldInfo;
 	}
 
 	// Get error message element by label
@@ -363,25 +387,10 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// Fill form field by label and value
 	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue) throws Exception {
-		label = label.replace("&", "&amp;");
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
-		
-		// === 1. Click edit if inline-edit button exists ===
-	    try {
-	        WebElement editBtn = driver.findElement(By.xpath( getEditButtonXPath(label)
-	        ));
-	        if(editBtn.isDisplayed() && editBtn.isEnabled()) {
-	            SFClick(editBtn);
-	            Thread.sleep(100); // wait for input to appear
-	        }
-	    } catch (NoSuchElementException e) {
-	        // No inline edit — probably already in edit mode
-	    }
-	    
-	    WebElement fieldElement = getFieldElementByLabel(label);
+		MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+		String type = fieldInfo.dataType;
+	    WebElement fieldElement = getFieldElementByLabelAndType(label,type);
 	    scrollIntoView(fieldElement);
-	    String type = fields.get(label).dataType;
-
 	    switch (type) {
 	        case "String":
 	        case "Url":
@@ -416,7 +425,7 @@ public class SFPageBase extends PageBase {
 	            }
 	            break;
 	        case "MultiPicklist":
-	            fillMultiPicklist(label, targetValue);
+	            fillMultiPicklist(label, type, targetValue);
 	            break;
 	        case "Reference":
 	        	fieldElement.sendKeys(targetValue);
@@ -429,79 +438,104 @@ public class SFPageBase extends PageBase {
 	    }
 	}
 
-	// Overloaded version with custom wait time
-	public void FillFormValueUsingSalesforceAPIMetadata(String label, String targetValue, int waitInSeconds) throws Exception {
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
-	    WebElement fieldElement = findElementWithWait(By.xpath(getFieldXPath(label)), waitInSeconds);
+	public void fillFormValue(String label, String value, int waitInSeconds) throws Exception {
+	    MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+	    WebElement fieldElement = findElementWithWait(By.xpath(getFieldXPath(label, fieldInfo.dataType)), waitInSeconds);
 	    scrollIntoView(fieldElement);
-	    String type = fields.get(label).dataType;
-
+	    String type = fieldInfo.dataType;
 	    switch (type) {
-	        case "String":
-	        case "Url":
-	        case "Int":
-	        case "Phone":
-	        case "Currency":
-	        case "Double":
-	        case "Date":
+	        case "String": case "Url": case "Int": case "Phone":
+	        case "Currency": case "Double": case "Date":
+	        case "Email": case "TextArea":
+	            clearAndSendKeys(fieldElement, value);
+	            break;
 	        case "Boolean":
-	        case "Email":
-	        case "TextArea":
-	            clearAndSendKeys(fieldElement, targetValue);
+	            SFClick(fieldElement);
 	            break;
 	        case "Picklist":
-	            waitAndClick(fieldElement);
-	            fieldElement.sendKeys(targetValue);
-	            Thread.sleep(2000);
-	            fieldElement.sendKeys(Keys.ENTER);
+	            handlePicklist(fieldElement, value);
 	            break;
 	        case "MultiPicklist":
-	            fillMultiPicklist(label, targetValue);
+	            fillMultiPicklist(label, type, value);
 	            break;
 	        case "Reference":
-	        	fieldElement.sendKeys(targetValue);
-	        	fieldElement.sendKeys(Keys.ARROW_DOWN);
+	            fieldElement.sendKeys(value);
+	            fieldElement.sendKeys(Keys.ARROW_DOWN);
 	            Thread.sleep(2000);
 	            fieldElement.sendKeys(Keys.ENTER);
 	            break;
 	        default:
-	            throw new Exception("Unsupported field type: " + type);
+	            throw new Exception("Unsupported field type: " + fieldInfo.dataType);
 	    }
 	}
-	
-	
 
-	// Clear input by label
-	public void formValueClear(String label) throws Exception {
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
-	    WebElement fieldElement = getFieldElementByLabel(label);
-	    scrollIntoView(fieldElement);
-	    String type = fields.get(label).dataType;
+	// Clear form value
+	public void clearFormValue(String label) throws Exception {
+		MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+		String type = fieldInfo.dataType;
+	    WebElement fieldElement = getFieldElementByLabelAndType(label,type);
 
-	    switch (type) {
-	        case "String":
-	        case "Url":
-	        case "Int":
-	        case "Phone":
-	        case "Currency":
-	        case "Double":
-	        case "Date":
-	        case "Boolean":
-	        case "Email":
-	        case "TextArea":
-	        case "Reference":
-	        	fieldElement.clear();
-	            break;
-	        case "Picklist":
-	            waitAndClick(fieldElement);
-	            fieldElement.clear();
-	            break;
-	        case "MultiPicklist":
-	            clearMultiPicklist(label);
-	            break;
-	        default:
-	            throw new Exception("Unsupported field type: " + type);
-	    }
+		switch (type) {
+		case "String":
+		case "Url":
+		case "Int":
+		case "Phone":
+		case "Currency":
+		case "Double":
+		case "Date":
+		case "Email":
+		case "TextArea":
+		case "Reference":
+			fieldElement.clear();
+			break;
+		case "Picklist":
+			waitAndClick(fieldElement);
+			fieldElement.clear();
+			break;
+		case "MultiPicklist":
+			clearMultiPicklist(label, type);
+			break;
+		case "Boolean":
+			if (fieldElement.isSelected())
+				SFClick(fieldElement);
+			break;
+		default:
+			throw new Exception("Unsupported field type: " + type);
+		}
+	}
+
+	// Get XPath based on type
+	private String getFieldXPath(String label, String type) throws Exception {
+		label = label.replace("&", "&amp;");
+		switch (type) {
+		case "Reference":
+		case "String":
+		case "Url":
+		case "Int":
+		case "Phone":
+		case "Currency":
+		case "Double":
+		case "Date":
+		case "Email":
+			return "//div[contains(@class,'active')]//input[@id=string(//label[normalize-space()='"
+					+ label + "']/@for)]" + " | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'"
+					+ label + "')]/@id)]";
+		case "TextArea":
+			return "//div[contains(@class,'active')]//textarea[@id=string(//label[normalize-space()='"
+					+ label + "']/@for)]";
+		case "Picklist":
+			return "//div[contains(@class,'active')]//button[@id=string(//label[normalize-space()='"
+					+ label + "']/@for)]" + " | //span[normalize-space(text())='"
+					+ label + "']/ancestor::div[contains(@class,'uiInputSelect')]//a[@role='combobox']";
+		case "MultiPicklist":
+			return "//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='"
+					+ label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')] | //div[contains(@class,'active')]//flowruntime-picklist-input-lwc[.//span[normalize-space(text())='"
+					+ label + "']]//select";
+		case "Boolean":
+			return "//label[normalize-space()='" + label + "']";
+		default:
+			throw new Exception("Unsupported field type for XPath: " + type);
+		}
 	}
 	
 	/**
@@ -510,44 +544,64 @@ public class SFPageBase extends PageBase {
 	 */
 	// click wrapper that updates current object automatically after navigation
 	public void clickQuickAction(String objectApiName, String actionLabel) throws Exception {
-	    // 1. Get the API name for the action (you already do this elsewhere)
-	    Map<String, String> actions = HTTPClientWrapper.getQuickActions(objectApiName);
-	    if (!actions.containsKey(actionLabel)) {
-	        throw new IllegalArgumentException("Action not found: " + actionLabel);
-	    }
-	    String apiName = actions.get(actionLabel); // e.g. Create_Data_Request or Opportunity.Create_Data_Request
+		// 1. Get the API name for the action (you already do this elsewhere)
+		Map<String, Object> actions = HTTPClientWrapper.getQuickActions(objectApiName);
+		if (!actions.containsKey(actionLabel)) {
+			throw new IllegalArgumentException("Action not found: " + actionLabel);
+		}
 
-	    // 2. Describe the quick action to learn if it's a Flow
-	    String describePath = "/sobjects/" + objectApiName + "/quickActions/" + apiName + "/describe";
-	    JSONObject actionDescribe = (JSONObject) HTTPClientWrapper.runGetRequest(describePath);
+		Object value = actions.get(actionLabel);
+		String apiName;
+		String describeUrl = null;
 
-	    // 3. If it's a Flow, set current object to flowDevName and set type
-	    String type = actionDescribe.optString("type", "SObject");
-	    if ("Flow".equalsIgnoreCase(type)) {
-	        String flowDevName = actionDescribe.optString("flowDevName");
-	        // set current object to flow identifier
-	        setCurrentObject(flowDevName);
-	        setCurrentObjectType("Flow");
-	    } else {
-	        // normal sObject quick action
-	        setCurrentObject(objectApiName);
-	        setCurrentObjectType("SObject");
-	    }
+		if (value instanceof JSONObject) {
+			JSONObject flowInfo = (JSONObject) value;
+			apiName = flowInfo.getString("apiName");
+			describeUrl = flowInfo.getString("describeUrl");
 
-	    // 4. Click the quick action button as before
-	    WebElement btn = getQuickActionElement(objectApiName, actionLabel);
-	    SFClick(btn);
+			String basePrefix = "/services/data" + HTTPClientWrapper.API_VERSION;
+			if (describeUrl.startsWith(basePrefix)) {
+				describeUrl = describeUrl.substring(basePrefix.length());
+			}
+		} else {
+			apiName = value.toString();
+		}
 
-	    // 5. Wait / update UI state as you already do
-	    waitForSFPagetoLoad();
-	    updateCurrentObjectAuto();
-	    System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
+		JSONObject actionDescribe;
+		if (describeUrl != null) {
+			actionDescribe = (JSONObject) HTTPClientWrapper.runGetRequest(describeUrl);
+		} else {
+			String path = "/sobjects/" + objectApiName + "/quickActions/" + apiName + "/describe";
+			actionDescribe = (JSONObject) HTTPClientWrapper.runGetRequest(path);
+		}
+
+		String type = actionDescribe.optString("type", "SObject");
+		if ("Flow".equalsIgnoreCase(type)) {
+			String flowDevName = actionDescribe.optString("flowDevName");
+
+			// 🔹 store both
+			QuickActionContext.currentSObject = objectApiName;
+			QuickActionContext.currentFlow = flowDevName;
+
+			setCurrentObjectType("Flow");
+		} else {
+			QuickActionContext.currentSObject = objectApiName;
+			QuickActionContext.currentFlow = null;
+
+			setCurrentObjectType("SObject");
+		}
+
+		WebElement btn = getQuickActionElement(objectApiName, actionLabel);
+		SFClick(btn);
+
+		waitForSFPagetoLoad();
+		System.out.println("PASS: Clicked Quick Action: " + actionLabel + " (" + objectApiName + ")");
 	}
 
-		// overload uses currentObject implicitly
-		public void clickQuickAction(String actionLabel) throws Exception {
-		    clickQuickAction(requireCurrentObject(), actionLabel);
-		}
+	// overload uses currentObject implicitly
+	public void clickQuickAction(String actionLabel) throws Exception {
+		clickQuickAction(requireCurrentObject(), actionLabel);
+	}
 		
 		
 		
@@ -591,7 +645,17 @@ public class SFPageBase extends PageBase {
 	    }
 	    
 	    public String getButtonLocator(String buttonText) {
-			return "(//div[contains(@class,'active')]//button[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" + buttonText + "' or @title='" + buttonText + "'] | //div[@aria-describedby=string(//span[normalize-space()='" + buttonText + "']//@id)]//lightning-icon | //div[contains(@class,'active')]//button//span[normalize-space()='"+ buttonText +"'] | //div[@aria-describedby=string(//span[@role='tooltip' and normalize-space()='" + buttonText + "']/@id)]/ancestor::button | //lightning-base-combobox-item//span[@title='" + buttonText + "'])[last()]";
+			return "(//div[contains(@class,'active')]//button[normalize-space()='" 
+					+ buttonText + "' or @title='"
+					+ buttonText + "'] | //div[contains(@class,'active')]//a[normalize-space()='" 
+					+ buttonText + "' or @title='" 
+					+ buttonText + "'] | //div[@aria-describedby=string(//span[normalize-space()='"
+					+ buttonText + "']/@id) and string(//span[normalize-space()='" 
+					+ buttonText + "']/@id)!='']//lightning-icon | //div[contains(@class,'active')]//button//span[normalize-space()='"
+					+ buttonText + "'] | //div[@aria-describedby=string(//span[@role='tooltip' and normalize-space()='"
+					+ buttonText + "']/@id) and string(//span[@role='tooltip' and normalize-space()='"
+					+ buttonText + "']/@id)!='']/ancestor::button | //lightning-base-combobox-item//span[@title='"
+					+ buttonText + "'])[last()]";
 	    }
 	    
 	    public String getChatterPost(String actorName) {
@@ -774,43 +838,6 @@ public class SFPageBase extends PageBase {
 	    throw new RuntimeException("Could not resolve object for recordId: " + recordId);
 	}
 	
-	private String getFieldXPath(String label) throws Exception {
-		Map<String, MetadataCache.FieldInfo> fields = MetadataCache.getAllFields(getCurrentObject(), getCurrentObjectType());
-		String type = fields.get(label).dataType;
-	    if (type == null) {
-	        throw new Exception("Label not found: " + label);
-	    }
-	    switch (type) {
-	        case "Reference":
-	        case "String":
-	        case "Url":
-	        case "Int":
-	        case "Phone":
-	        case "Currency":
-	        case "Double":
-	        case "Date":
-	        case "Email":
-	            return "//div[contains(@class,'active')]//input[@id=string(//label[text()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@id=string(//label[normalize-space()='" + label + "']/@for)] | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'" +label+ "')]/@id)]";
-	        case "TextArea":
-	            return "//div[contains(@class,'active')]//textarea[@id=string(//label[text()='" + label + "']/@for)]";
-	        case "Picklist":
-	            return // For Standard Lightning record edit form
-	                    "//div[contains(@class,'active')]//button[@id=string(//label[normalize-space(text())='" + label + "']/@for)] | " +
-	                    "//div[contains(@class,'active')]//input[@id=string(//label[normalize-space(text())='" + label + "']/@for)] | " +
-
-	                    // Generic inline edit / modals
-	                    "//span[normalize-space(text())='" + label + "']/ancestor::div[contains(@class,'uiInputSelect')]//a[@role='combobox']";
-	        case "MultiPicklist":
-	        	return 
-	        			"//div[contains(@class,'active')]//div[contains(@class,'slds-form-element__label') and text()='" + label + "']/following-sibling::div//div[contains(@class,'slds-dueling-list')] | " +
-	        	        "//div[contains(@class,'active')]//flowruntime-picklist-input-lwc[.//span[normalize-space(text())='" + label + "']]//select";
-	        case "Boolean":
-	        	return "//label[normalize-space()='"+label+"']";
-	        default:
-	            throw new Exception("Unsupported field type: " + type);
-	    }
-	}
-	
 	private String getEditButtonXPath(String label){
 		return String.format("(//div[contains(@class,'active')]//button[contains(@title,'Edit %s')])[last()]", label);
 	}
@@ -838,8 +865,8 @@ public class SFPageBase extends PageBase {
 
 	// Filling MultiPicklist
 	// Filling MultiPicklist (works for both old and new versions)
-	private void fillMultiPicklist(String label, String targetValue) throws Exception {
-	    WebElement container = getFieldElementByLabel(label);
+	private void fillMultiPicklist(String label, String type, String targetValue) throws Exception {
+	    WebElement container = getFieldElementByLabelAndType(label, type);
 	    String values = targetValue.replaceAll("[\\[\\]]", ""); // Remove brackets
 	    String[] items = values.split(",\\s*");
 
@@ -871,9 +898,27 @@ public class SFPageBase extends PageBase {
 	    hardwait(2);
 	}
 
+
+
+	// Picklist helper
+	private void handlePicklist(WebElement fieldElement, String value) throws Exception {
+	    String tag = fieldElement.getTagName().toLowerCase();
+	    if ("a".equals(tag)) {
+	        waitAndClick(fieldElement);
+	        fieldElement.sendKeys(value);
+	        WebElement option = driver.findElement(By.xpath("//a[@role='option' and @title='" + value + "']"));
+	        waitAndClick(option);
+	    } else {
+	        waitAndClick(fieldElement);
+	        fieldElement.sendKeys(value);
+	        Thread.sleep(2000);
+	        fieldElement.sendKeys(Keys.ENTER);
+	    }
+	}
+	
 	// Clearing MultiPicklist
-	private void clearMultiPicklist(String label) throws Exception {
-	    WebElement container = getFieldElementByLabel(label);
+	private void clearMultiPicklist(String label, String type) throws Exception {
+	    WebElement container = getFieldElementByLabelAndType(label, type);
 	    WebElement selectedList = container.findElement(By.xpath(".//ul[@data-selected-list]"));
 	    WebElement moveButton = container.findElement(By.xpath(".//button[@title='Move to Available']"));
 
@@ -1189,13 +1234,17 @@ public class SFPageBase extends PageBase {
 	}
 	
 	public void assertFormValueByLabel(String label, String expectedValue) throws Exception {
-		WebElement we = getFieldElementByLabel(label);
+		MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+		String type = fieldInfo.dataType;
+		WebElement we = getFieldElementByLabelAndType(label, type);
 		String actualValue = "input".equalsIgnoreCase(we.getTagName())? we.getAttribute("value"):we.getText();
 		Assert.assertEquals(actualValue, expectedValue, "Field '" + label + "' value mismatch.");
 	}
 	
 	public void assertAvailablePicklistOptionsEquals(String label, String targetValue) throws Exception {
-	    WebElement container = getFieldElementByLabel(label);
+		MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+		String type = fieldInfo.dataType;
+		WebElement container = getFieldElementByLabelAndType(label, type);
 	    WebElement availableList = container.findElement(By.xpath(".//ul[@data-source-list]"));
 
 	    // Get all available options
@@ -1218,7 +1267,9 @@ public class SFPageBase extends PageBase {
 	}
 
 	public void assertChosenPicklistOptionsEquals(String label, String targetValue) throws Exception {
-	    WebElement container = getFieldElementByLabel(label);
+		MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+		String type = fieldInfo.dataType;
+		WebElement container = getFieldElementByLabelAndType(label, type);
 	    WebElement selectedList = container.findElement(By.xpath(".//ul[@data-selected-list]"));
 
 	    // Get all chosen options
@@ -1264,7 +1315,9 @@ public class SFPageBase extends PageBase {
 
 	public void assertElementVisible(String fieldLabel, int timeoutInSeconds) {
 		try {
-			WebElement element = getFieldElementByLabel(fieldLabel);
+			MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(fieldLabel);
+			String type = fieldInfo.dataType;
+			WebElement element = getFieldElementByLabelAndType(fieldLabel, type);
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
 			wait.until(ExpectedConditions.visibilityOf(element));
 			Assert.assertTrue(element.isDisplayed(), "Element with label '" + fieldLabel + "' should be visible.");
@@ -1275,7 +1328,9 @@ public class SFPageBase extends PageBase {
 	
 	public void assertElementNotVisible(String fieldLabel, int timeoutInSeconds) {
 		try {
-			WebElement element = getFieldElementByLabel(fieldLabel);
+			MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(fieldLabel);
+			String type = fieldInfo.dataType;
+			WebElement element = getFieldElementByLabelAndType(fieldLabel, type);
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
 			wait.until(ExpectedConditions.visibilityOf(element));
 			Assert.assertTrue(!element.isDisplayed(), "Element with label '" + fieldLabel + "' should not visible.");
@@ -1531,10 +1586,7 @@ public class SFPageBase extends PageBase {
 	// --- Wait Utilities Section ---
 	// ============================================================
 
-	/**
-	 * Wait for an element to appear within timeout. TODO: Optimize by adding
-	 * polling interval and exception ignoring.
-	 */
+	
 	public boolean waitForElementToAppear(WebElement element, int timeoutInSeconds) {
 		try {
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
@@ -1545,10 +1597,7 @@ public class SFPageBase extends PageBase {
 		}
 	}
 
-	/**
-	 * Wait for an element to disappear. TODO: Can be optimized with FluentWait to
-	 * better handle stale elements.
-	 */
+	
 	public boolean waitForElementToDisappear(By locator, int timeoutInSeconds) {
 		try {
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
@@ -1558,10 +1607,7 @@ public class SFPageBase extends PageBase {
 		}
 	}
 
-	/**
-	 * Wait for an element to be clickable. TODO: Replace usages of Thread.sleep
-	 * with this method wherever possible.
-	 */
+	
 	public WebElement waitForElementToBeClickable(By locator, int timeoutInSeconds) {
 		WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
 		return wait.until(ExpectedConditions.elementToBeClickable(locator));
@@ -1600,7 +1646,9 @@ public class SFPageBase extends PageBase {
 	public boolean waitForFieldToAppear(String label, int timeoutInSeconds) {
 	    try {
 	        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
-	        WebElement element = getFieldElementByLabel(label);
+	        MetadataCache.FieldInfo fieldInfo = getFieldInfoUsingMetadata(label);
+			String type = fieldInfo.dataType;
+			WebElement element = getFieldElementByLabelAndType(label, type);
 	        wait.until(ExpectedConditions.visibilityOf(element));
 	        System.out.println("PASS: Field '" + label + "' appeared on the page.");
 	        return true;

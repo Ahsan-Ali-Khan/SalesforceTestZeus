@@ -132,7 +132,7 @@ public class SystemAdmin_AccountsManagement_Accounts_AddNew_ProspectType_Adverti
 			objectlistpage.assertFormValueByLabel("Shipping Zip/Postal Code", "06905");
 			objectlistpage.assertFormValueByLabel("Account Name", accountName);
 			objectlistpage.assertFormValueByLabel("Website", website);
-			objectlistpage.formValueClear("Account Name");
+			objectlistpage.clearFormValue("Account Name");
 			objectlistpage.clickButton("Save");
 			objectlistpage.assertFormErrorValueByLabel("Account Name", "Complete this field");
 			objectlistpage.assertFormValueSnags("Account Name", "Account Name");

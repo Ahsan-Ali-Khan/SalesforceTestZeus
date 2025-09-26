@@ -43,12 +43,12 @@ public class HTTPClientWrapper {
 	 */
 
 	private static String REST_ENDPOINT = "/services/data";
-	private static String API_VERSION = "/v64.0";
+	public static String API_VERSION = "/v64.0";
 	private static String baseUri;
 	private static Header oauthHeader;
 	private static Header prettyPrintHeader = new BasicHeader("X-PrettyPrint", "1");
     private static final Map<String, Map<String, String>> describeCache = new HashMap<>();
-    private static final Map<String, Map<String, String>> quickActionCache = new HashMap<>();
+    private static final Map<String, Map<String, Object>> quickActionCache = new HashMap<>();
 	private static HttpPost httpPost;
 	private static String loginInstanceUrl;
 	
@@ -290,8 +290,10 @@ public class HTTPClientWrapper {
 
 	            try {
 	                if (responseString.startsWith("{")) {
+	                	System.out.println(responseString);
 	                    return new JSONObject(responseString);
 	                } else if (responseString.startsWith("[")) {
+	                	System.out.println(responseString);
 	                    return new JSONArray(responseString);
 	                } else {
 	                    System.out.println("Unexpected response format: " + responseString);
@@ -694,25 +696,39 @@ public class HTTPClientWrapper {
         map.putIfAbsent(apiName, apiName);
     }
 
+    
+    
     /**
      * Get Quick Actions for an object and cache them.
-     * Returns a mapping of Label → API Name (prefixed with object).
-     * Example: "New Opportunity" → "Account.New_Opportunity"
+     * Returns a mapping of Label → API Name or, for Flows, a JSON string with API name + describe URL.
+     * Example:
+     * "New Opportunity" → "Account.New_Opportunity"
+     * "Create Data Request" → {"apiName":"Opportunity.Create_Data_Request","describeUrl":"/services/data/v64.0/sobjects/Opportunity/quickActions/Create_Data_Request/describe"}
      */
-    public static Map<String, String> getQuickActions(String objectName) {
+    public static Map<String, Object> getQuickActions(String objectName) {
         return quickActionCache.computeIfAbsent(objectName, key -> {
             try {
                 JSONArray quickActions = (JSONArray) runGetRequest("/sobjects/" + key + "/quickActions");
 
-                Map<String, String> map = new HashMap<>();
+                Map<String, Object> map = new HashMap<>();
                 for (int i = 0; i < quickActions.length(); i++) {
                     JSONObject action = quickActions.getJSONObject(i);
-                    String apiName = action.getString("name");      // e.g. New_Opportunity
-                    String label = action.getString("label");    // e.g. New Opportunity
+                    String apiName = action.getString("name");      // e.g. Account.New_Opportunity
+                    String label = action.getString("label");       // e.g. New Opportunity
+                    String type = action.optString("type", "SObject");
 
-                    // Add mappings
-                    map.putIfAbsent(label, apiName);
-                    map.putIfAbsent(apiName, apiName);
+                    if ("Flow".equalsIgnoreCase(type)) {
+                        // Store API name + describe URL in a small JSON for flows
+                        JSONObject flowInfo = new JSONObject();
+                        flowInfo.put("apiName", apiName);
+                        flowInfo.put("describeUrl", action.getJSONObject("urls").optString("describe"));
+                        map.put(label, flowInfo);
+                        map.put(apiName, flowInfo);
+                    } else {
+                        // Keep normal behavior for SObject quick actions
+                        map.put(label, apiName);
+                        map.put(apiName, apiName);
+                    }
                 }
                 return map;
             } catch (Exception e) {

@@ -133,7 +133,6 @@ public class AgencySeller_CaseManagement_Cases_ListViews_MySubmittedRequests ext
 
 		    // Create Opportunity
 		    objectlistpage.clickQuickAction("New Opportunity");
-		    objectlistpage.setCurrentObject("Opportunity");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
