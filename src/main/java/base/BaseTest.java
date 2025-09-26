@@ -39,6 +39,7 @@ import pageobjects.ObjectListPage;
 import pageobjects.LightningLoginPage;
 import utils.GetSFApps;
 import utils.HTTPClientWrapper;
+import utils.MetadataCache.QuickActionContext;
 import utils.PageBase;
 
 /*@author: Robin Gupta
@@ -133,7 +134,7 @@ public class BaseTest implements ExcelReader, PropertyReader {
 
 	@AfterMethod(alwaysRun = true)
 	public void tearDownandCaptureScreenShot(Method method, ITestResult result) { // Method for taking screenshots on
-																					// failure of the test case
+		// failure of the test case
 		if (ITestResult.FAILURE == result.getStatus()) {
 			try {
 				SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddhhmmss");
@@ -155,6 +156,7 @@ public class BaseTest implements ExcelReader, PropertyReader {
 	@AfterClass(alwaysRun = true)
 	public void deleteAllCookies() {
 		// Logging out of the Salesforce APIs
+		QuickActionContext.clear();	
 		HTTPClientWrapper.SFLogout_API();
 
 		// Handling windows after executing each class from Suite

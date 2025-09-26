@@ -9,6 +9,7 @@ import org.testng.annotations.Test;
 
 import base.BaseTest;
 import utils.HTTPClientWrapper;
+import utils.MetadataCache.QuickActionContext;
 
 public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_ClosedWon extends BaseTest {
 
@@ -123,7 +124,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			objectlistpage.assertFieldLabelAndValue("Status", "Active");
 			objectlistpage.assertFieldLabelAndValue("Account Record Type", "Advertiser");
 			objectlistpage.clickQuickAction("New Opportunity");
-			objectlistpage.setCurrentObject("Opportunity");
+			QuickActionContext.setCurrentSObject("Opportunity");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
@@ -145,7 +146,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			objectlistpage.hardwait(5*60);
 			objectlistpage.clickButton("Mark Stage as Complete");
 			objectlistpage.assertToastMessageContains("Stage changed successfully.");
-			objectlistpage.setCurrentObject("OpportunityContactRole");
+			QuickActionContext.setCurrentSObject("OpportunityContactRole");
 	        objectlistpage.assertStageTabSelected("Building Solution");
 	        objectlistpage.assertFieldLabelAndValue("ROI", "");
 	        objectlistpage.clickButton("Mark Stage as Complete");
@@ -160,7 +161,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        objectlistpage.clickButton("Next");
 	        objectlistpage.enterSearchText("Webomates"); 
 	        objectlistpage.selectOption(1); 
-	        objectlistpage.setCurrentObject("OpportunityContactRole");
+	        QuickActionContext.setCurrentSObject("OpportunityContactRole");
 	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Role","Influencer");
 	        objectlistpage.clickButton("Save");
 	        objectlistpage.clickTab("Details");
@@ -206,7 +207,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 			
 	        objectlistpage.assertFieldLabelAndValue("Revenue Type", "");
 	        objectlistpage.assertFieldLabelAndValue("Billing Type", "");
-	        objectlistpage.setCurrentObject("Opportunity");  // to be deleted step
+	        QuickActionContext.setCurrentSObject("Opportunity");  // to be deleted step
 	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 	        objectlistpage.assertFieldLabelAndValue("Makegood Approval", "");
 	        objectlistpage.assertFieldLabelAndValue("Makegood Parameters - Linear", "");
@@ -231,7 +232,7 @@ public class AgencySeller_OpportunityManagement_OpportunityDetails_Workflow_Clos
 	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Campaign Status", "In Progress");
 	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Billing Type", "Broadcast");
 	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Co-Op", "");
-	        objectlistpage.setCurrentObject("Opportunity"); // to be deleted step
+	        QuickActionContext.setCurrentSObject("Opportunity"); // to be deleted step
 	        objectlistpage.scrollEachSection( "[Opportunity Summary,Order Details,Makegood Parameters,Additional Details,System Information]" );
 	        objectlistpage.assertPicklistOptionsEquals("Makegood Approval", "[Not Allowed,Requires Seller Approval,Requires Client approval,Requires Agency Approval,Requires Rep Firm Approval,No Approval Needed within Campaign Flight]");
 	        objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Makegood Approval", "Not Allowed");

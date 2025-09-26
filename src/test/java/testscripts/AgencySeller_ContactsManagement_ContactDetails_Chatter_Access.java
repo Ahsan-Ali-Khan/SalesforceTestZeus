@@ -11,6 +11,7 @@ import org.testng.annotations.Test;
 import base.BaseTest;
 import pageobjects.ObjectListPage;
 import utils.HTTPClientWrapper;
+import utils.MetadataCache.QuickActionContext;
 
 public class AgencySeller_ContactsManagement_ContactDetails_Chatter_Access extends BaseTest {
 
@@ -131,18 +132,18 @@ public class AgencySeller_ContactsManagement_ContactDetails_Chatter_Access exten
 
 		    // Create Opportunity
 		    objectlistpage.clickQuickAction("New Opportunity");
-		    objectlistpage.setCurrentObject("Opportunity");
+		    QuickActionContext.setCurrentSObject("Opportunity");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
 			objectlistpage.clickButton("Next");
 			objectlistpage.clickButton("Finish");
 
-		    objectlistpage.setCurrentObject("Opportunity");
+			QuickActionContext.setCurrentSObject("Opportunity");
 		    
 //		    // Submit Sales Dev Request
 		    objectlistpage.clickQuickAction("Sales Dev Request");
-		    objectlistpage.setCurrentObject("Case");
+		    QuickActionContext.setCurrentSObject("Case");
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Requested Due Date", requestedDueDate);
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Client Challenges & Needs", clientChallengesAndNeeds);
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Deliverables Needed", "1:1 Collateral");

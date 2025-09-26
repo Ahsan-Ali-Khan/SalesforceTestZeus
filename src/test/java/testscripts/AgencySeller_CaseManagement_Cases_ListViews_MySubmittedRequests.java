@@ -11,6 +11,7 @@ import org.testng.annotations.Test;
 import base.BaseTest;
 import pageobjects.ObjectListPage;
 import utils.HTTPClientWrapper;
+import utils.MetadataCache.QuickActionContext;
 
 public class AgencySeller_CaseManagement_Cases_ListViews_MySubmittedRequests extends BaseTest {
 
@@ -133,6 +134,7 @@ public class AgencySeller_CaseManagement_Cases_ListViews_MySubmittedRequests ext
 
 		    // Create Opportunity
 		    objectlistpage.clickQuickAction("New Opportunity");
+		    QuickActionContext.setCurrentSObject("Opportunity");	
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);

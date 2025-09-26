@@ -17,6 +17,7 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import utils.EnvironmentConfigDto;
+import utils.MetadataCache.QuickActionContext;
 
 public class LightningLoginPage extends utils.SFPageBase {
 
@@ -78,6 +79,6 @@ public class LightningLoginPage extends utils.SFPageBase {
 
         openHomepage(cleanurl + "?eptVisible=1");
         waitForSFPagetoLoad();
-        setCurrentObject(appname);
+        QuickActionContext.setCurrentSObject(appname);
     }
 }

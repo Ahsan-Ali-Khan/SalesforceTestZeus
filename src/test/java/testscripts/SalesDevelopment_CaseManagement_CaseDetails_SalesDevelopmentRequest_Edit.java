@@ -11,6 +11,7 @@ import org.testng.annotations.Test;
 import base.BaseTest;
 import pageobjects.ObjectListPage;
 import utils.HTTPClientWrapper;
+import utils.MetadataCache.QuickActionContext;
 
 public class SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest_Edit extends BaseTest {
 
@@ -130,20 +131,20 @@ public class SalesDevelopment_CaseManagement_CaseDetails_SalesDevelopmentRequest
 
 		    // Create Opportunity
 		    objectlistpage.clickQuickAction("New Opportunity");
-		    objectlistpage.setCurrentObject("Opportunity");
+		    QuickActionContext.setCurrentSObject("Opportunity");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Opportunity Name", opportunityName);
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Amount", "2000");
 			objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Close Date", closeDate);
 			objectlistpage.clickButton("Next");
 			objectlistpage.clickButton("Finish");
 
-		    objectlistpage.setCurrentObject("Opportunity");
+		    QuickActionContext.setCurrentSObject("Opportunity");
 		    
 		    objectlistpage.clickQuickAction("Sales Dev Request");
 		    objectlistpage.assertModalHeader("Sales Dev Request");
 		    objectlistpage.assertTextVisible("SALES DEVELOPMENT REQUEST");
 //		    objectlistpage.assertTextVisible("Only ONE Sales Development and ONE Media Planning Request can be open at a time. You can create a new request once the prior request is completed");
-		    objectlistpage.setCurrentObject("Case");
+		    QuickActionContext.setCurrentSObject("Case");
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Requested Due Date", requestedDueDate);
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Client Challenges & Needs", clientChallengesAndNeeds);
 		    objectlistpage.FillFormValueUsingSalesforceAPIMetadata("Deliverables Needed", "1:1 Collateral");

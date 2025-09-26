@@ -1,7 +1,5 @@
 package utils;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,7 +187,27 @@ public class MetadataCache {
     }
     
     public class QuickActionContext {
-        public static String currentSObject;   // e.g. "Opportunity"
-        public static String currentFlow;      // e.g. "Screen_Flow_Create_Opportunity_From_Account"
+        private static final ThreadLocal<String> currentSObject = ThreadLocal.withInitial(() -> null);
+        private static final ThreadLocal<String> currentFlow = ThreadLocal.withInitial(() -> null);
+        private static final ThreadLocal<String> currentObjectType = ThreadLocal.withInitial(() -> "SObject");
+
+        // --- SObject ---
+        public static void setCurrentSObject(String sObject) { currentSObject.set(sObject); }
+        public static String getCurrentSObject() { return currentSObject.get(); }
+
+        // --- Flow ---
+        public static void setCurrentFlow(String flow) { currentFlow.set(flow); }
+        public static String getCurrentFlow() { return currentFlow.get(); }
+
+        // --- Object type ---
+        public static void setCurrentObjectType(String type) { currentObjectType.set(type); }
+        public static String getCurrentObjectType() { return currentObjectType.get(); }
+
+        // --- Clear after test run ---
+        public static void clear() {
+            currentSObject.remove();
+            currentFlow.remove();
+            currentObjectType.remove();
+        }
     }
 }

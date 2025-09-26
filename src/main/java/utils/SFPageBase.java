@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,8 +52,6 @@ public class SFPageBase extends PageBase {
 	protected static HashMap<String, String> labelandtype;
 	private String extractedObjectName;
     private static final int DEFAULT_WAIT_SECONDS = 30;
-    private String currentObjectApiName;
-    private static String currentObjectType = "SObject"; // default
     private static final Pattern LIGHTNING_RECORD_PATTERN = Pattern.compile("/lightning/r/([^/]+)/[A-Za-z0-9]{15,18}(/|$)");
     private static final Pattern LIGHTNING_OBJECT_PATTERN = Pattern.compile("/lightning/o/([^/]+)/(?:list|new)");
     private static final Pattern ONE_APP_SOBJECT_PATTERN = Pattern.compile("/sObject/([A-Za-z0-9]{15,18})");
@@ -92,7 +91,7 @@ public class SFPageBase extends PageBase {
 	        driver.get(url);
 	        waitForSFPagetoLoad();
 	        // AUTO: set current object after navigation
-	        setCurrentObject(objectApiName); // immediate and correct
+	        QuickActionContext.setCurrentSObject(objectApiName);
 	    } catch (Exception e) {
 	        System.out.println("Failed to open Lightning URL: " + e.getMessage());
 	        try {
@@ -126,9 +125,9 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	
 	
-	public void uiApiHitter(String recordId) throws Exception {
+	public String uiApiHitter(String recordId) throws Exception {
 		uiapi_record_json = HTTPClientWrapper.runGetRequest("/ui-api/record-ui/" + recordId + "?formFactor=Large&modes=View,Edit").toString();
-
+		String extractedObjectName = null;
         try {
             
             JSONArray extractedObjectNames = new org.json.JSONArray(JsonPath.read(uiapi_record_json, "$..objectApiName").toString());
@@ -147,6 +146,8 @@ public class SFPageBase extends PageBase {
         } else {
             System.out.println(" Object name extracted from response: " + extractedObjectName);
         }
+        
+        return extractedObjectName;
     }
 	
 
@@ -356,15 +357,13 @@ public class SFPageBase extends PageBase {
 	}
 	
 	private MetadataCache.FieldInfo getFieldInfoUsingMetadata(String label) throws Exception {
+		String currentSObject = QuickActionContext.getCurrentSObject();
+		String currentFlow = QuickActionContext.getCurrentFlow();
 	    label = label.replace("&", "&amp;");
-	    Map<String, MetadataCache.FieldInfo> allFields =
-	            MetadataCache.getAllFieldsMerged(QuickActionContext.currentSObject, QuickActionContext.currentFlow);
-
+	    Map<String, MetadataCache.FieldInfo> allFields = MetadataCache.getAllFieldsMerged(currentSObject, currentFlow);
 	    MetadataCache.FieldInfo fieldInfo = allFields.get(label);
 	    if (fieldInfo == null) {
-	        throw new Exception("Field not found: " + label
-	                + " in SObject: " + QuickActionContext.currentSObject
-	                + " or Flow: " + QuickActionContext.currentFlow);
+	        throw new Exception("Field not found: " + label + " in SObject: " + currentSObject + " or Flow: " + currentFlow);
 	    }
 	    if (fieldInfo.dataType == null) {
 	        throw new Exception("DataType not found for: " + label);
@@ -401,6 +400,7 @@ public class SFPageBase extends PageBase {
 	        case "Date":
 	        case "Email":
 	        case "TextArea":
+			case "InputField":
 	            clearAndSendKeys(fieldElement, targetValue);
 	            break;
 	        case "Boolean":
@@ -515,16 +515,20 @@ public class SFPageBase extends PageBase {
 		case "Phone":
 		case "Currency":
 		case "Double":
+		case "InputField":
 		case "Date":
 		case "Email":
-			return "//div[contains(@class,'active')]//input[@id=string(//label[normalize-space()='"
+			return "//div[contains(@class,'active')]//input[@id=string(//label[text()='"
+					+ label + "' or normalize-space()='"
 					+ label + "']/@for)]" + " | //div[contains(@class,'active')]//input[@aria-labelledby=string(//lightning-formatted-rich-text[contains(normalize-space(),'"
 					+ label + "')]/@id)]";
 		case "TextArea":
-			return "//div[contains(@class,'active')]//textarea[@id=string(//label[normalize-space()='"
+			return "//div[contains(@class,'active')]//textarea[@id=string(//label[text()='"
+					+ label + "' or normalize-space()='"
 					+ label + "']/@for)]";
 		case "Picklist":
-			return "//div[contains(@class,'active')]//button[@id=string(//label[normalize-space()='"
+			return "//div[contains(@class,'active')]//button[@id=string(//label[text()='"
+					+ label + "' or normalize-space()='"
 					+ label + "']/@for)]" + " | //span[normalize-space(text())='"
 					+ label + "']/ancestor::div[contains(@class,'uiInputSelect')]//a[@role='combobox']";
 		case "MultiPicklist":
@@ -576,19 +580,16 @@ public class SFPageBase extends PageBase {
 		}
 
 		String type = actionDescribe.optString("type", "SObject");
+
 		if ("Flow".equalsIgnoreCase(type)) {
 			String flowDevName = actionDescribe.optString("flowDevName");
-
-			// 🔹 store both
-			QuickActionContext.currentSObject = objectApiName;
-			QuickActionContext.currentFlow = flowDevName;
-
-			setCurrentObjectType("Flow");
+			QuickActionContext.setCurrentSObject(objectApiName); // still keep parent object for reference
+			QuickActionContext.setCurrentFlow(flowDevName);
+			QuickActionContext.setCurrentObjectType("Flow");
 		} else {
-			QuickActionContext.currentSObject = objectApiName;
-			QuickActionContext.currentFlow = null;
-
-			setCurrentObjectType("SObject");
+			QuickActionContext.setCurrentSObject(objectApiName);
+			QuickActionContext.setCurrentFlow(null);
+			QuickActionContext.setCurrentObjectType("SObject");
 		}
 
 		WebElement btn = getQuickActionElement(objectApiName, actionLabel);
@@ -752,7 +753,7 @@ public class SFPageBase extends PageBase {
 	        String id = m.group(1);
 	        try {
 	            setCurrentObjectFromRecordId(id);
-	            return this.currentObjectApiName;
+	            return QuickActionContext.getCurrentObjectType();
 	        } catch (Exception e) {
 	            return null;
 	        }
@@ -771,7 +772,7 @@ public class SFPageBase extends PageBase {
 	        String url = driver.getCurrentUrl();
 	        String obj = extractObjectFromUrl(url);
 	        if (obj != null && !obj.isEmpty()) {
-	            this.currentObjectApiName = obj;
+	            QuickActionContext.setCurrentSObject(obj);
 	            System.out.println("Auto-detected current object from URL: " + obj);
 	            return;
 	        }
@@ -782,8 +783,8 @@ public class SFPageBase extends PageBase {
 	            String id = idMatcher.group(1);
 	            if (id != null) {
 	                setCurrentObjectFromRecordId(id);
-	                if (this.currentObjectApiName != null) {
-	                    System.out.println("Auto-detected current object from recordId fallback: " + this.currentObjectApiName);
+	                if (QuickActionContext.getCurrentSObject() != null) {
+	                    System.out.println("Auto-detected current object from recordId fallback: " + QuickActionContext.getCurrentSObject());
 	                    return;
 	                }
 	            }
@@ -795,7 +796,7 @@ public class SFPageBase extends PageBase {
 	            threadObj = BaseTest.getThreadCurrentObject();
 	        } catch (Throwable ignored) { }
 	        if (threadObj != null && !threadObj.isEmpty()) {
-	            this.currentObjectApiName = threadObj;
+	        	QuickActionContext.setCurrentSObject(threadObj);
 	            System.out.println("Using ThreadLocal currentObject: " + threadObj);
 	            return;
 	        }
@@ -812,16 +813,16 @@ public class SFPageBase extends PageBase {
 	 * Given a recordId, call UI-API fallback (uiApiHitter) to set extractedObjectName,
 	 * then set currentObjectApiName. Uses your existing uiApiHitter() & ObjectPrefixCache fallback.
 	 */
-	public void setCurrentObjectFromRecordId(String recordId) throws Exception {
+	public String setCurrentObjectFromRecordId(String recordId) throws Exception {
 	    if (recordId == null || recordId.length() < 3) {
 	        throw new IllegalArgumentException("Invalid recordId: " + recordId);
 	    }
 	    try {
 	        // uiApiHitter will populate extractedObjectName
-	        uiApiHitter(recordId);
-	        if (this.extractedObjectName != null && !this.extractedObjectName.isEmpty()) {
-	            setCurrentObject(this.extractedObjectName);
-	            return;
+	        String extractedObjectName = uiApiHitter(recordId);
+	        if (extractedObjectName != null && !extractedObjectName.isEmpty()) {
+	        	QuickActionContext.setCurrentSObject(extractedObjectName);
+	            return extractedObjectName;
 	        }
 	    } catch (Exception e) {
 	        // ignore and try prefix-based fallback
@@ -831,8 +832,8 @@ public class SFPageBase extends PageBase {
 	    String prefix = recordId.substring(0, 3);
 	    String obj = ObjectPrefixCache.getObjectName(prefix);
 	    if (obj != null && !obj.isEmpty()) {
-	        setCurrentObject(obj);
-	        return;
+	    	QuickActionContext.setCurrentSObject(obj);
+	        return extractedObjectName;
 	    }
 
 	    throw new RuntimeException("Could not resolve object for recordId: " + recordId);
@@ -863,7 +864,6 @@ public class SFPageBase extends PageBase {
 	    element.sendKeys(value);
 	}
 
-	// Filling MultiPicklist
 	// Filling MultiPicklist (works for both old and new versions)
 	private void fillMultiPicklist(String label, String type, String targetValue) throws Exception {
 	    WebElement container = getFieldElementByLabelAndType(label, type);
@@ -1065,10 +1065,12 @@ public class SFPageBase extends PageBase {
 	// ============================================================
 	// --- Assertions Section ---
 	// ============================================================
-	public void assertRequiredFieldLabels(String expectedCsv) {
+	public void assertRequiredFieldLabels(String expectedValues) {
 	    // Convert CSV string to List<String>
-	    List<String> expectedLabels = Arrays.stream(expectedCsv.split(","))
+	    expectedValues = expectedValues.replaceAll("[\\[\\]\"']", "");
+	    List<String> expectedLabels = Arrays.stream(expectedValues.split(","))
 	            .map(String::trim)
+	            .filter(s -> !s.isEmpty())
 	            .collect(Collectors.toList());
 
 	    // XPath: find labels that contain <abbr class='slds-required'>
@@ -1077,57 +1079,77 @@ public class SFPageBase extends PageBase {
 	    );
 
 	    // Extract actual required field labels
-	    List<String> actualLabels = requiredLabelElements.stream()
-	            .map(e -> e.getText().trim())
-	            .collect(Collectors.toList());
+	    Set<String> actualLabels = requiredLabelElements.stream()
+	            .map(e -> e.getText().trim().replace("*", ""))
+	            .collect(Collectors.toSet());
 
 	    // Debug log
 	    System.out.println("Expected required fields: " + expectedLabels);
 	    System.out.println("Actual required fields:   " + actualLabels);
 
-	    // Assert all expected are present
-	    for (String label : expectedLabels) {
-	        Assert.assertTrue(
-	            actualLabels.contains(label),
-	            "Missing required field: " + label + ". Found: " + actualLabels
-	        );
-	    }
+	    // Collect missing labels
+	    List<String> missing = expectedLabels.stream()
+	            .filter(label -> !actualLabels.contains(label))
+	            .collect(Collectors.toList());
+
+	    // Assert once at the end
+	    Assert.assertTrue(
+	        missing.isEmpty(),
+	        "Missing required fields: " + missing + ". Found: " + actualLabels
+	    );
 	}
 	
 	public void assertPicklistOptionsEquals(String label, String expectedValues) {
-	    // Step 1: Locate combobox container by label text
-	    WebElement container = driver.findElement(By.xpath(
-	        "//label[normalize-space()='" + label + "']/ancestor::lightning-combobox"
-	    ));
-
-	    // Step 2: Open dropdown if not already open
-	    WebElement dropdownButton = container.findElement(By.xpath(".//button[contains(@class,'slds-combobox__input')]"));
-	    if (!Boolean.parseBoolean(dropdownButton.getAttribute("aria-expanded"))) {
-	        SFClick(dropdownButton);
-	    }
-
-	    // Step 3: Fetch all options from dropdown
-	    List<WebElement> options = container.findElements(By.xpath(
-	        ".//lightning-base-combobox-item//span[@title]"
-	    ));
-
-	    List<String> actualValues = options.stream()
-	            .map(e -> e.getAttribute("title").trim())
-	            .filter(v -> !v.equalsIgnoreCase("--None--")) // ignore "--None--" if not required
-	            .collect(Collectors.toList());
-
-	    // Step 4: Clean expected values
+	    // Step 1: Normalize expected values
 	    String values = expectedValues.replaceAll("[\\[\\]]", "");
 	    List<String> expectedList = Arrays.stream(values.split(",\\s*"))
 	            .map(String::trim)
+	            .filter(s -> !s.equalsIgnoreCase("--None--"))
 	            .collect(Collectors.toList());
 
-	    // Step 5: Compare lists (ignoring order)
+	    // Step 2: Try lightning-combobox first
+	    List<String> actualValues = new ArrayList<>();
+	    try {
+	        WebElement container = driver.findElement(By.xpath(
+	            "//label[normalize-space()='" + label + "']/ancestor::lightning-combobox"
+	        ));
+
+	        WebElement dropdownButton = container.findElement(By.xpath(".//button[contains(@class,'slds-combobox__input')]"));
+	        if (!Boolean.parseBoolean(dropdownButton.getAttribute("aria-expanded"))) {
+	            SFClick(dropdownButton);
+	        }
+
+	        List<WebElement> options = container.findElements(By.xpath(
+	            ".//lightning-base-combobox-item//span[@title]"
+	        ));
+
+	        actualValues = options.stream()
+	                .map(e -> e.getAttribute("title").trim())
+	                .filter(v -> !v.equalsIgnoreCase("--None--"))
+	                .collect(Collectors.toList());
+
+	    } catch (NoSuchElementException e) {
+	        // Step 3: Fallback to <select> style picklist
+	        WebElement selectElement = driver.findElement(By.xpath(
+	            "//label[normalize-space()='" + label + "']/following::select[1]"
+	        ));
+
+	        Select select = new Select(selectElement);
+	        actualValues = select.getOptions().stream()
+	                .map(o -> o.getText().trim())
+	                .filter(v -> !v.equalsIgnoreCase("--None--"))
+	                .collect(Collectors.toList());
+	    }
+
+	    // Step 4: Compare (ignoring order)
 	    if (!new HashSet<>(actualValues).equals(new HashSet<>(expectedList))) {
 	        throw new AssertionError("Picklist options for '" + label + "' mismatch. " +
 	                "Expected: " + expectedList + ", but got: " + actualValues);
 	    }
+
+	    System.out.println(" Picklist '" + label + "' options match expected: " + expectedList);
 	}
+
 	
 	public void assertTabEnabled(String tabName) {
         WebElement tab = findElementWithWait(By.xpath(getTabLocator(tabName)), DEFAULT_WAIT_SECONDS);
@@ -1790,37 +1812,16 @@ public class SFPageBase extends PageBase {
 		// --- Get Current Object Section ---
 	// ============================================================
 	
-	// Explicitly set/clear current object (useful in setup or test helpers)
-	public void setCurrentObject(String objectApiName) {
-	    this.currentObjectApiName = objectApiName;
-	    System.out.println("SFPageBase: currentObject set -> " + objectApiName);
-	}
-
-	public String getCurrentObject() {
-	    if (this.currentObjectApiName == null || this.currentObjectApiName.isEmpty()) {
-	        // lazy auto-detect
-	        try {
-	            updateCurrentObjectAuto();
-	        } catch (Exception e) {
-	            // keep silent — caller can decide how to handle null
-	        }
-	    }
-	    return this.currentObjectApiName;
-	}
-
-	public void clearCurrentObject() {
-	    this.currentObjectApiName = null;
-	}
 
 	// internal helper for methods that must have object
 	private String requireCurrentObject() {
-	    String obj = getCurrentObject();
+	    String obj = QuickActionContext.getCurrentSObject();
 	    if (obj == null || obj.isEmpty()) {
 	        // Try ThreadLocal fallback
 	        try {
 	            String threadObj = BaseTest.getThreadCurrentObject();
 	            if (threadObj != null && !threadObj.isEmpty()) {
-	                this.currentObjectApiName = threadObj;
+	            	QuickActionContext.setCurrentSObject(threadObj);
 	                return threadObj;
 	            }
 	        } catch (Throwable ignored) { }
@@ -1828,81 +1829,6 @@ public class SFPageBase extends PageBase {
 	        throw new IllegalStateException("Current object not set. Call setCurrentObject(...) or ensure a navigation method ran.");
 	    }
 	    return obj;
-	}
-	
-	
-	public static void setCurrentObjectType(String t) {
-		currentObjectType = t;
-	}
-
-	public static String getCurrentObjectType() {
-		return currentObjectType;
-	}
-	
-	// ============================================================
-	// --- Methods TO Deprecate / Improve ---
-	// ============================================================
-	
-	public void globalSearch(String searchTerm, String objectType) {
-		WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
-
-		try {
-			// 1. Click the global search button (magnifier icon)
-			WebElement searchBtn = wait.until(ExpectedConditions.elementToBeClickable(
-					By.xpath("//button[contains(@class,'search-button')]")));
-			searchBtn.click();
-
-			// 2. Handle object type filter if provided
-			if (objectType != null && !objectType.isEmpty()) {
-				// Click dropdown arrow
-				WebElement dropdownArrow = wait.until(ExpectedConditions.elementToBeClickable(
-						By.xpath("//lightning-icon[contains(@class,'slds-input__icon_right')]")));
-				dropdownArrow.click();
-
-				// Locate the "Search: All" combobox input
-				WebElement filterInput = wait.until(ExpectedConditions.elementToBeClickable(
-						By.xpath("//input[contains(@class,'slds-combobox__input')]")));
-
-				// Clear existing text completely
-				filterInput.click();
-
-				// Type the objectType (e.g. Lead)
-				int times = 3;
-				for(int reps = 0; reps < times ; reps++) {
-					filterInput.click();
-					filterInput.sendKeys(Keys.BACK_SPACE);
-					Thread.sleep(1000l);
-				}
-				filterInput.sendKeys(objectType);
-
-				// Wait and select the dropdown option
-				WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-						By.xpath("//div[contains(@class,'slds-listbox')]//lightning-base-combobox-item//span[normalize-space(text())='" + objectType + "s']")));
-				option.click();
-			}
-
-			// 3. Enter the actual search term in search textbox
-			WebElement searchInput = wait.until(ExpectedConditions.elementToBeClickable(
-					By.xpath("//input[@type='search' and contains(@class,'slds-input')]")));
-			searchInput.clear();
-			searchInput.sendKeys(searchTerm);
-
-			// 4. Wait for instant result and click the first one
-			WebElement firstResult = wait.until(ExpectedConditions.elementToBeClickable(
-					By.xpath("(//search_dialog-instant-result-item)[1]")));
-			firstResult.click();
-
-			System.out.println("PASS: Search success: " + searchTerm + 
-					(objectType == null ? " in All" : " in " + objectType));
-
-		} catch (Exception e) {
-			System.out.println("FAIL: globalSearch failed: " + e.getMessage());
-		}
-	}
-
-	// Overloaded method (default = All)
-	public void globalSearch(String searchTerm) {
-		globalSearch(searchTerm, null);
 	}
 	
 }
